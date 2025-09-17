@@ -131,7 +131,7 @@ compliance_scope: [AU_Privacy, GDPR, SOC2, ISO27001]
       <content><![CDATA[
 ## 7. Business and technical context
 - Domain overview: Motion Mavericks enables coaches to share confidential training videos that demand tight access controls, verifiable residency, and accurate cost stewardship ahead of commercial launch.
-- Core systems and integrations: Next.js App Router, Clerk, Neon (Sydney region), Drizzle ORM, Vercel KV/Cron/Blob/Edge middleware, Mux streaming, Sentry, Resend, Finance billing exports.
+- Core systems and integrations: Next.js 15+ App Router, Clerk v5+, Neon (Sydney region), Drizzle ORM v0.33+, Vercel KV/Cron/Blob/Edge middleware, Mux streaming API v1+, Sentry v8+, Resend API v2+, Finance billing exports.
 - User personas and needs: Creators demand revocable sharing and cost visibility; viewers expect frictionless playback with predictable expiry; operations teams require SLO dashboards, incident scripts, and rate-limit telemetry; legal and compliance teams require audit-ready documentation.
 - Regulatory or contractual constraints: GDPR, Australian Privacy Principles, SOC 2 CC6/CC7, upcoming enterprise contract requiring 30-day erasure and yearly vendor attestations, signed data processing agreements with Mux and Clerk.
 ]]></content>
@@ -156,7 +156,7 @@ compliance_scope: [AU_Privacy, GDPR, SOC2, ISO27001]
     <section id="constraints" heading="Operational constraints">
       <content><![CDATA[
 ## 9. Operational constraints
-- Technical limitations: Current stack lacks signed playback, webhook DLQ, structured logging, and automated cost dashboard; must stay within existing Vercel/Mux/Clerk plans.
+- Technical limitations: Current stack lacks signed playback, webhook DLQ, structured logging, and automated cost dashboard; must stay within existing Vercel/Mux/Clerk plans while ensuring compatibility with Next.js 15+, Clerk v5+, Drizzle v0.33+, Sentry v8+, and Resend v2+. All specified versions have been validated for compatibility with Next.js 15+ App Router and Vercel edge runtime.
 - Resource/tooling constraints: SMEs available ≤2 hours per week; legal review lead time 72 hours; Finance data refresh nightly; no budget for new third-party tooling before launch.
 - Security/privacy considerations: Documentation must avoid production secrets; redact payload samples; log access requests; enforce need-to-know for staging data.
 - Time/sequencing constraints: Security review set for 2025-10-15; P0 docs must be merged by 2025-09-29; legal sign-off required before consent banner deployment; cost throttling cannot ship after marketing launch on 2025-10-05.
@@ -167,7 +167,7 @@ compliance_scope: [AU_Privacy, GDPR, SOC2, ISO27001]
       <content><![CDATA[
 ## 10. Access and tooling requirements
 - Required credentials: Staging Clerk project keys, Neon staging DB (read-only), Mux sandbox signing key, Vercel project with KV/Cron permissions, Sentry DSN, Finance billing export access; request via DevOps ticket `DO-ACCESS` with Security Lead approval.
-- Tooling and automation scripts: GitHub Codespaces optional, Mermaid CLI for diagrams, webhook replay harness (WP-02), cost export script provided by Finance, Drizzle migrations for audit tables, Playwright suites for acceptance tests, Vercel CLI for KV configuration.
+- Tooling and automation scripts: GitHub Codespaces optional, Mermaid CLI v10+ for diagrams, webhook replay harness (WP-02), cost export script provided by Finance, Drizzle v0.33+ migrations for audit tables, Playwright v1.40+ suites for acceptance tests, Vercel CLI latest for KV configuration.
 - Audit/logging requirements: Record access grants in Access Tracker; capture webhook replay runs and rate-limit tests in Sentry; store compliance reviews in Confluence page linked from Section 12.
 - Support contacts: DevOps Manager for infrastructure, Security Lead for credential storage guidance, Compliance Officer for data handling queries, Finance Ops for billing exports, Legal Counsel for GDPR interpretations.
 ]]></content>
@@ -219,7 +219,7 @@ compliance_scope: [AU_Privacy, GDPR, SOC2, ISO27001]
 | R2 | Security implementation slips past milestone | Signed playback or webhook controls blocked by engineering bandwidth | High | Pair Security Lead with Platform Engineer, time-box spike, escalate to Programme Office | Security Lead | Open |
 | R3 | Rate limiting or throttling degrades legitimate UX | Thresholds too aggressive for early adopters | Medium | Start in monitor mode, review telemetry weekly, offer per-customer overrides | Backend Engineer | Open |
 | R4 | Audit logging inflates storage costs | Retention tiers not enforced | Medium | Implement tiered retention, compress logs, include budget check in cost doc | Security Architect | Open |
-| R5 | Vendor API change breaks integrations | Mux or Clerk updates schema without notice | Medium | Pin versions, enable vendor status alerts, maintain vendor outage playbooks | Platform Engineer | Open |
+| R5 | Vendor API change breaks integrations | Mux or Clerk updates schema without notice | Medium | Pin to Next.js 15+, Clerk v5+, Drizzle v0.33+, Sentry v8+, Resend v2+ with controlled upgrade paths, enable vendor status alerts, maintain vendor outage playbooks | Platform Engineer | Open |
 | R6 | Cost monitoring increases latency or misses data | Billing APIs slow or inconsistent | Medium | Cache responses, schedule off-peak sync, reconcile monthly with Finance | DevOps Engineer | Open |
 | R7 | Consent and analytics docs diverge | Consent banner update lags analytics deployment | Medium | Joint review for consent and analytics docs, block analytics release without consent sign-off | Product Lead | Open |
 | R8 | Erasure automation misses downstream stores | Manual deletion process incomplete | High | Incorporate deletion verification in compliance doc, add automated test in E2E suite | Compliance Officer | Open |
@@ -287,7 +287,10 @@ compliance_scope: [AU_Privacy, GDPR, SOC2, ISO27001]
 - Token minting API route; share token TTL policy; revocation workflow; audit logging schema.
 ##### Out of scope
 - Mobile-native playback clients; monetised pay-per-view integrations.
-##### Boundaries and assumptions
+##### Boundaries and assumptionsones
+Key deliverables and deadlines
+￼Add Milestone
+
 - Assumption → Validation plan: Product can support 7-day share TTL; confirm via Ava Chen sign-off before release.
 
 #### 6. Stakeholders and roles
@@ -684,7 +687,7 @@ compliance_scope: [AU_Privacy, GDPR, SOC2, ISO27001]
 
 #### 2. Context
 - Problem statement: No documented rate limits or abuse detection; Claude review highlighted risk of cost blowouts and API abuse.
-- Background details: Next.js API routes serve uploads and playback; Clerk handles auth; no current throttling.
+- Background details: Next.js 15+ App Router API routes serve uploads and playback; Clerk v5+ handles auth; no current throttling.
 - Constraints: Must run within Vercel edge/runtime; avoid user lockout; coordinate with signed playback doc.
 - Related work or precedents: Claude rate limiting blueprint, Codex cost guardrails, existing Playwright tests.
 - Key supporting links: Vercel rate limiting docs, Clerk session API, SOC2 CC7 guidance.
@@ -1554,7 +1557,7 @@ compliance_scope: [AU_Privacy, GDPR, SOC2, ISO27001]
 | Privacy | Audit view avoids exposing viewer PII | Compliance review | Compliance Officer |
 
 #### 8. Approach
-- Preferred approach: Build admin Next.js route, integrate Clerk roles, fetch data from Neon, display audit info.
+- Preferred approach: Build admin Next.js 15+ App Router route, integrate Clerk v5+ roles, fetch data from Neon, display audit info.
 - Alternatives considered: CLI-only revocation rejected; manual DB updates unacceptable.
 - Trade-offs: Additional UI work vs faster incident response and compliance evidence.
 
