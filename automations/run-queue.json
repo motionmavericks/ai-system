@@ -1,0 +1,120 @@
+[
+  {
+    "ticket_id": "F-001",
+    "title": "Scaffold Turborepo/Next.js 15 monorepo with pnpm, ESLint/Prettier, Vitest, Hu…",
+    "summary": "Scaffold Turborepo/Next.js 15 monorepo with pnpm, ESLint/Prettier, Vitest, Husky hooks, and shared TS config. Owner: Agent: Implementer",
+    "dependencies": [],
+    "docs": [
+      "automations/build-spec.yaml",
+      "docs/playbook/05-project-setup/05-01-repository-setup.md"
+    ],
+    "acceptance": [
+      "pnpm install succeeds",
+      "lint/typecheck scripts pass locally/CI",
+      "Husky enforces formatting + commit lint."
+    ],
+    "tests": [],
+    "feature_flags": [],
+    "telemetry": [],
+    "risk": "medium"
+  },
+  {
+    "ticket_id": "F-002",
+    "title": "Configure environment template `.env.example` with Clerk, Neon, Resend, Mux, …",
+    "summary": "Configure environment template `.env.example` with Clerk, Neon, Resend, Mux, Upstash, Sentry, feature flags, and rotation notes. Owner: Agent: Implementer",
+    "dependencies": [
+      "F-001"
+    ],
+    "docs": [
+      "docs/playbook/05-project-setup/05-03-environments-and-secrets.md"
+    ],
+    "acceptance": [
+      "Secrets documented",
+      "Vercel/Neon envs created",
+      "rotation runbook captured in repo."
+    ],
+    "tests": [],
+    "feature_flags": [],
+    "telemetry": [],
+    "risk": "medium"
+  },
+  {
+    "ticket_id": "F-003",
+    "title": "Model high-level architecture diagram, domain contexts, and service boundarie…",
+    "summary": "Model high-level architecture diagram, domain contexts, and service boundaries; validate against ADRs. Owner: Human: Technical Delivery Lead",
+    "dependencies": [
+      "F-001"
+    ],
+    "docs": [
+      "docs/playbook/04-architecture-and-decisions/04-01-system-context.md"
+    ],
+    "acceptance": [
+      "Architecture diagram stored",
+      "service boundary checklist signed off by Reliability Partner."
+    ],
+    "tests": [],
+    "feature_flags": [],
+    "telemetry": [],
+    "risk": "medium"
+  },
+  {
+    "ticket_id": "F-004",
+    "title": "Define Drizzle schema skeleton with tenants/users/projects/assets/notificatio…",
+    "summary": "Define Drizzle schema skeleton with tenants/users/projects/assets/notifications tables and RLS strategy. Owner: Agent: Implementer",
+    "dependencies": [
+      "F-002"
+    ],
+    "docs": [
+      "docs/playbook/06-data-model-and-storage/06-01-schema-design.md"
+    ],
+    "acceptance": [
+      "Schema compiles",
+      "initial migration generated",
+      "review comments resolved."
+    ],
+    "tests": [],
+    "feature_flags": [],
+    "telemetry": [],
+    "risk": "medium"
+  },
+  {
+    "ticket_id": "F-005",
+    "title": "Implement migration + rollback pipeline, seed script for pilot data, and auto…",
+    "summary": "Implement migration + rollback pipeline, seed script for pilot data, and automated schema drift detection. Owner: Agent: Implementer",
+    "dependencies": [
+      "F-004"
+    ],
+    "docs": [
+      "docs/playbook/06-data-model-and-storage/06-02-migrations-plan.md"
+    ],
+    "acceptance": [
+      "pnpm db:migrate/rollback succeed",
+      "seed creates pilot tenants",
+      "drift check integrated in CI."
+    ],
+    "tests": [],
+    "feature_flags": [],
+    "telemetry": [],
+    "risk": "medium"
+  },
+  {
+    "ticket_id": "F-006",
+    "title": "Establish coding standards, commit strategy, and documentation for repo conve…",
+    "summary": "Establish coding standards, commit strategy, and documentation for repo conventions (branch naming, feature toggles, workspace layout). Owner: Human: Knowledge Steward",
+    "dependencies": [
+      "F-001"
+    ],
+    "docs": [
+      "docs/playbook/05-project-setup/05-02-coding-standards.md"
+    ],
+    "acceptance": [
+      "Standards doc merged",
+      "PR template references guidelines",
+      "enforcement automated where possible."
+    ],
+    "tests": [],
+    "feature_flags": [],
+    "telemetry": [],
+    "risk": "medium"
+  }
+]
