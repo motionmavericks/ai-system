@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readFile, writeFile, mkdir, access } from 'fs/promises';
-import { constants } from 'fs';
+import { existsSync, constants } from 'fs';
 import { resolve, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
@@ -235,7 +235,19 @@ async function main() {
     }
 
     if (!progressed) {
-      blocked.push(...pending);
+      for (const ticketId of pending) {
+        await updateHeartbeat(runId, `${ticketId}:blocked`);
+        await appendHistory(runState, ticketId, {
+          phase: 'blocked',
+          status: 'blocked',
+          summary: 'Blocked because dependencies failed acceptance checks.',
+          timestamp: new Date().toISOString()
+        });
+        runState.tickets[ticketId].status = 'blocked';
+        runState.tickets[ticketId].phase = 'blocked';
+        blocked.push(ticketId);
+      }
+      await writeJson(runStatePath, runState);
       break;
     }
   }
