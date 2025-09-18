@@ -25,19 +25,21 @@ Controller agent (Orchestrator) coordinates role turn-taking and manages shared 
 
 ## 2. Artefact Flow
 
-1. Planner ingests build spec → emits structured plan (`automations/run-queue.json`) and writes scope embeddings to long-term memory.
+0. State initialisation: the orchestrator auto-runs `npm run automation:run-state:init -- --run-id <run_id>` to sync `automations/run-state.json` with the run queue, then starts the heartbeat daemon via `npm run automation:memory:bootstrap -- --run-id <run_id> --daemon` so telemetry and replay scaffolding exist. The CLI helper `npm run automation:run:queue` performs these steps automatically.
+1. Planner ingests build spec → emits structured plan (`automations/run-queue.json`) and writes scope embeddings to long-term memory. The orchestrator records each planned ticket in `automations/run-state.json` with `phase: "planner"`.
 2. Orchestrator selects next ready ticket, loads relevant memory slices, and passes to Implementer.
 3. Implementer writes code, runs targeted unit tests, opens draft PR, and records execution traces (commands, failures) to short-term memory.
 4. Reviewer checks diff; on failure, ticket loops back to Implementer with critique persisted for reuse.
 5. QA runs full suite (unit, integration, e2e, accessibility, performance smoke) via GitHub Actions dispatcher and pushes structured metrics to telemetry store.
 6. Ops agent merges PR, promotes to preview, triggers release checklist, and logs deployment outcomes.
 7. Knowledge Steward updates docs, context, change log, and reconciles memory records to keep facts current.
-8. Reinforcement loop: Orchestrator updates prompt/program parameters based on evaluation scores before pulling next ticket.
+8. Reinforcement loop: Orchestrator updates prompt/program parameters based on evaluation scores before pulling the next ticket, only after the active ticket reaches `phase: "done"` and replay/telemetry files are flushed.
 
 Memory layers:
 - **Short-term scratchpad** – JSON files per run under `automations/memory/sessions/<run_id>/`.
 - **Long-term fact store** – Hybrid memory index (`automations/memory/index.json`) consolidating embeddings (vector similarity), relationships (graph adjacency list), and keyed facts for low-latency lookups.
 - **Experience buffer** – `automations/memory/replay/` capturing agent traces for DSPy/RL fine-tuning.
+- **Orchestration state** – `automations/run-state.json` capturing `tickets.<id>.phase` so runs can resume the exact agent turn if interrupted.
 
 ## 3. Ticket Schema (JSON)
 
@@ -102,7 +104,7 @@ Memory layers:
 
 ## 5. State Management & Memory Hygiene
 
-- Orchestrator maintains `automations/run-state.json` containing current ticket, status (`pending|in_progress|blocked|done`), artefact links, and aggregate reward scores.
+- Orchestrator maintains `automations/run-state.json` containing current ticket, `phase` (`planner|implementer|reviewer|qa|ops_release|knowledge|done|blocked`), artefact links, and aggregate reward scores. Record the active `run_id` and heartbeat status.
 - Logs stored per agent under `automations/logs/<agent>/<timestamp>.log` for audit.
 - Memory compactor runs postflight to dedupe facts, update graph edges, and roll stale traces into the replay buffer.
 - Every run updates `automations/memory/manifest.json` with checksum + schema version to support validation.
@@ -111,6 +113,7 @@ Memory layers:
 
 - Before editing files, Implementer consults `automations/docs/guardrails.md` to ensure scope alignment.
 - Reviewer ensures guardrail violations escalate to human review.
+- Orchestrator responses must follow the JSON contract in `automations/prompts/orchestrations/run.prompt.md`, always including the next agent prompt and re-queuing the run prompt until every ticket is `phase: "done"`. Set `updates.memory` to the artefacts touched (sessions heartbeat, replay trace, telemetry report).
 
 ## 7. Automation Interfaces
 

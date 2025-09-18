@@ -49,3 +49,4 @@ Respond with JSON so the controller can programmatically load the next file:
 - When routing to an agent prompt, include the ticket ID or relevant payload reference in `notes` so the agent has clear context.
 - Keep track of state updates: after any agent produces output, update `automations/run-state.json` and advise when to persist telemetry or memory changes.
 - Close the loop by signalling when the operator should re-run this command prompt (e.g., after postflight or if new goals arrive).
+- For CLI-driven workflows, `npm run automation:run:queue` will execute the full sequence (state init, heartbeat bootstrap, ticket loop, postflight). Use this when human intervention is unavailable and report its output in `notes`.

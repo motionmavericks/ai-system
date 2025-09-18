@@ -80,8 +80,10 @@ Defines the hybrid long-term memory surface for Motion Mavericks automation. Age
 - `automations/scripts/memory-validate.mjs` – Ensures schema compliance and checksum integrity. Use `node automations/scripts/memory-validate.mjs --write` inside CI.
 - `automations/scripts/memory-compact.mjs` – Deduplicates/sorts records, recomputes checksum, and updates manifest.
 - `automations/scripts/collect-telemetry.mjs` – Aggregates raw QA/ops logs into telemetry outputs before committing to memory.
+- `automations/scripts/memory-bootstrap.mjs` – Creates run scaffolding (sessions, replay, telemetry) and maintains a heartbeat daemon. Run `npm run automation:memory:bootstrap -- --run-id <RUN_ID>` before launching orchestration (automatically invoked by `npm run automation:run:queue`).
+- `automations/scripts/run-state-init.mjs` – Mirrors `automations/run-queue.json` into `automations/run-state.json`, ensuring the orchestrator records heartbeat locations and ticket phases. The preflight/run prompts call this automatically when needed.
+- `automations/scripts/orchestrator-run.mjs` – Drives the entire queue, writing telemetry/replay snapshots and updating `automations/run-state.json` as tickets progress.
 
 ## External Backends
 
 Environment variables (see `automations/docs/ci-bootstrap.md`) point to production-grade vector/graph stores. The local JSON artifacts act as an audit mirror and fallback cache so agents can continue operating offline.
-

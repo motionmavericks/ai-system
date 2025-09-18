@@ -6,6 +6,9 @@
     "automation:memory:check": "node automations/scripts/memory-validate.mjs",
     "automation:memory:validate": "node automations/scripts/memory-validate.mjs --write",
     "automation:memory:compact": "node automations/scripts/memory-compact.mjs",
+    "automation:memory:bootstrap": "node automations/scripts/memory-bootstrap.mjs",
+    "automation:run-state:init": "node automations/scripts/run-state-init.mjs",
+    "automation:run:queue": "node automations/scripts/orchestrator-run.mjs",
     "automation:telemetry:collect": "node automations/scripts/collect-telemetry.mjs",
     "automation:orchestration:smoke": "node automations/scripts/orchestration-smoke.mjs"
   }
