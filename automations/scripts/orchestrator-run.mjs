@@ -181,127 +181,167 @@ async function executeFullRun(
   let activeTicket = null;
   let blockedTickets = new Set();
   let processedCount = 0;
+  let postflightDetails = null;
+  let loopError = null;
 
   console.log('🔄 Entering prompt-driven execution loop...');
 
-  while (currentPrompt) {
-    context.run_state = await stateManager.loadRunState();
-    if (currentPrompt === runPromptPath) {
-      const runResult = await promptController.executePrompt(runPromptPath, context);
-      await applyPromptUpdates({ result: runResult, stateManager, memoryManager });
+  try {
+    while (currentPrompt) {
+      context.run_state = await stateManager.loadRunState();
 
-      if (runResult.phase === 'blocked' && runResult.ticket_id) {
-        blockedTickets.add(runResult.ticket_id);
-      }
+      if (currentPrompt === runPromptPath) {
+        const runResult = await promptController.executePrompt(runPromptPath, context);
+        await applyPromptUpdates({ result: runResult, stateManager, memoryManager });
 
-      if (runResult.phase === 'done' && runResult.ticket_id) {
-        processedCount += 1;
-      }
-
-      if (!runResult.next_prompt) {
-        break;
-      }
-
-      if (runResult.next_prompt === postflightPromptPath) {
-        currentPrompt = postflightPromptPath;
-        continue;
-      }
-
-      if (runResult.next_prompt.includes('/agents/')) {
-        const ticketId = runResult.ticket_id;
-        activeTicket = queue.find(t => t.ticket_id === ticketId);
-
-        if (!activeTicket) {
-          throw new Error(`Run prompt referenced unknown ticket: ${ticketId}`);
+        if (runResult.phase === 'blocked' && runResult.ticket_id) {
+          blockedTickets.add(runResult.ticket_id);
         }
 
-        const guardResult = await guardEvaluator.evaluateTicket(ticketId);
-        context.guard_evaluations = {
-          ...(context.guard_evaluations || {}),
-          [ticketId]: guardResult
-        };
-        if (guardResult && !guardResult.passed) {
-          console.log(`❌ Guard checks failed for ${ticketId}. Marking blocked.`);
-          await stateManager.updateTicketStatus(ticketId, 'blocked', 'blocked', {
-            summary: guardResult.summary,
-            failures: guardResult.failures,
-            recommended_actions: guardResult.recommended_actions
-          });
-          context.run_state = await stateManager.loadRunState();
-          blockedTickets.add(ticketId);
-          currentPrompt = followOnQueue.shift() || runPromptPath;
+        if (runResult.phase === 'done' && runResult.ticket_id) {
+          processedCount += 1;
+        }
+
+        if (!runResult.next_prompt) {
+          break;
+        }
+
+        if (runResult.next_prompt === postflightPromptPath) {
+          currentPrompt = null;
+          break;
+        }
+
+        if (runResult.next_prompt.includes('/agents/')) {
+          const ticketId = runResult.ticket_id;
+          activeTicket = queue.find(t => t.ticket_id === ticketId);
+
+          if (!activeTicket) {
+            throw new Error(`Run prompt referenced unknown ticket: ${ticketId}`);
+          }
+
+          const guardResult = await guardEvaluator.evaluateTicket(ticketId);
+          context.guard_evaluations = {
+            ...(context.guard_evaluations || {}),
+            [ticketId]: guardResult
+          };
+          if (guardResult && !guardResult.passed) {
+            console.log(`❌ Guard checks failed for ${ticketId}. Marking blocked.`);
+            await stateManager.updateTicketStatus(ticketId, 'blocked', 'blocked', {
+              summary: guardResult.summary,
+              failures: guardResult.failures,
+              recommended_actions: guardResult.recommended_actions
+            });
+            context.run_state = await stateManager.loadRunState();
+            blockedTickets.add(ticketId);
+            currentPrompt = followOnQueue.shift() || runPromptPath;
+            continue;
+          }
+
+          followOnQueue = Array.isArray(runResult.follow_on) ? [...runResult.follow_on] : [];
+          context.current_ticket = activeTicket;
+          context.current_phase = runResult.phase;
+          currentPrompt = runResult.next_prompt;
           continue;
         }
 
-        followOnQueue = Array.isArray(runResult.follow_on) ? [...runResult.follow_on] : [];
-        context.current_ticket = activeTicket;
-        context.current_phase = runResult.phase;
+        // If run prompt directed to another orchestration prompt
         currentPrompt = runResult.next_prompt;
         continue;
       }
 
-      // If run prompt directed to another orchestration prompt
-      currentPrompt = runResult.next_prompt;
-      continue;
-    }
+      if (currentPrompt.includes('/agents/')) {
+        if (!activeTicket) {
+          throw new Error('Agent prompt requested without an active ticket context');
+        }
 
-    if (currentPrompt.includes('/agents/')) {
-      if (!activeTicket) {
-        throw new Error('Agent prompt requested without an active ticket context');
+        const agentName = currentPrompt
+          .split('/')
+          .pop()
+          .replace('.prompt.md', '');
+
+        const agentResult = await agentExecutor.executeAgent(agentName, activeTicket, context);
+        await applyPromptUpdates({ result: agentResult, stateManager, memoryManager });
+
+        context.previous_agent_output = agentResult;
+
+        // Determine next prompt in chain
+        currentPrompt = followOnQueue.shift() || runPromptPath;
+
+        if (!currentPrompt.includes('/agents/') && currentPrompt === runPromptPath) {
+          activeTicket = null;
+        }
+
+        continue;
       }
 
-      const agentName = currentPrompt
-        .split('/')
-        .pop()
-        .replace('.prompt.md', '');
-
-      const agentResult = await agentExecutor.executeAgent(agentName, activeTicket, context);
-      await applyPromptUpdates({ result: agentResult, stateManager, memoryManager });
-
-      context.previous_agent_output = agentResult;
-
-      // Determine next prompt in chain
-      currentPrompt = followOnQueue.shift() || runPromptPath;
-
-      if (!currentPrompt.includes('/agents/') && currentPrompt === runPromptPath) {
-        activeTicket = null;
-      }
-
-      continue;
-    }
-
-    if (currentPrompt === postflightPromptPath) {
-      const finalState = await stateManager.loadRunState();
-      const postflightResult = await promptController.executePrompt(postflightPromptPath, {
-        run_id: runId,
-        tickets_processed: processedCount,
-        blocked_tickets: Array.from(blockedTickets),
-        final_state: finalState
-      });
-
-      await memoryManager.updateHeartbeat(blockedTickets.size ? 'blocked' : 'postflight');
-      await applyPromptUpdates({ result: postflightResult, stateManager, memoryManager });
-
-      if (blockedTickets.size > 0) {
-        console.error(`\n❌ Queue halted. Blocked tickets: ${Array.from(blockedTickets).join(', ')}`);
-        console.error('Refer to automations/run-state.json for detailed guard failures.');
-        process.exit(1);
-      }
-
-      console.log(`\n✅ Postflight completed: ${postflightResult.summary}`);
+      // Unknown prompt type
+      console.warn(`⚠️  Unrecognized prompt flow: ${currentPrompt}. Stopping.`);
       break;
     }
-
-    // Unknown prompt type
-    console.warn(`⚠️  Unrecognized prompt flow: ${currentPrompt}. Stopping.`);
-    break;
+  } catch (error) {
+    loopError = error;
+  } finally {
+    try {
+      postflightDetails = await ensurePostflight({
+        promptController,
+        stateManager,
+        memoryManager,
+        runId,
+        processedCount,
+        blockedTickets
+      });
+    } catch (postflightError) {
+      if (loopError) {
+        console.error('❌ Postflight execution failed after orchestration error:', postflightError.message);
+      }
+      loopError = loopError || postflightError;
+    }
   }
 
-    // Refresh run-state context for next iteration
-    context.run_state = await stateManager.loadRunState();
+  if (postflightDetails && postflightDetails.blockedTickets.length > 0) {
+    console.error(`\n❌ Queue halted. Blocked tickets: ${postflightDetails.blockedTickets.join(', ')}`);
+    console.error('Refer to automations/run-state.json for detailed guard failures.');
+    process.exit(1);
+  }
+
+  if (loopError) {
+    throw loopError;
   }
 
   console.log(`\n✅ Prompt-driven run completed. Tickets processed: ${processedCount}`);
+}
+
+async function ensurePostflight({
+  promptController,
+  stateManager,
+  memoryManager,
+  runId,
+  processedCount,
+  blockedTickets
+}) {
+  const finalState = await stateManager.loadRunState();
+  const postflightResult = await promptController.executePrompt(
+    'automations/prompts/orchestrations/postflight.prompt.md',
+    {
+      run_id: runId,
+      tickets_processed: processedCount,
+      blocked_tickets: Array.from(blockedTickets),
+      final_state: finalState
+    }
+  );
+
+  if (memoryManager) {
+    await memoryManager.updateHeartbeat(blockedTickets.size ? 'blocked' : 'postflight');
+  }
+
+  await applyPromptUpdates({ result: postflightResult, stateManager, memoryManager });
+
+  console.log(`\n✅ Postflight completed: ${postflightResult.summary}`);
+
+  return {
+    summary: postflightResult.summary,
+    blockedTickets: Array.from(blockedTickets)
+  };
 }
 
 /**

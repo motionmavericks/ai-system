@@ -2,7 +2,7 @@
 title: "Agent Orchestration Blueprint"
 status: "Draft"
 owner: "Docs Agent"
-last_updated: "2025-09-19"
+last_updated: "2025-09-18"
 ---
 
 # Agent Orchestration Blueprint
@@ -108,6 +108,7 @@ Memory layers:
 - Orchestrator maintains `automations/run-state.json` containing current ticket, `phase` (`planner|implementer|reviewer|qa|ops_release|knowledge|done|blocked`), artefact links, and aggregate reward scores. Record the active `run_id` and heartbeat status.
 - Logs stored per agent under `automations/logs/<agent>/<timestamp>.log` for audit.
 - Memory compactor runs postflight to dedupe facts, update graph edges, and roll stale traces into the replay buffer.
+- `ensurePostflight` in `automations/scripts/orchestrator-run.mjs` guarantees the postflight prompt executes even when the run loop exits early so heartbeat updates and memory flushes stay consistent.
 - Every run updates `automations/memory/manifest.json` with checksum + schema version to support validation.
 
 ## 6. Guardrail Hooks
