@@ -1,0 +1,17 @@
+{
+  "status": "pass",
+  "summary": "All targeted tests passed",
+  "commands": [
+    {"cmd": "pnpm lint", "exit_code": 0, "duration_seconds": 32.5},
+    {"cmd": "pnpm test:unit --filter=milestones", "exit_code": 0, "duration_seconds": 58.2}
+  ],
+  "metrics": {
+    "coverage_statements": 0.84,
+    "p95_latency_ms": 240
+  },
+  "issues": [],
+  "artefacts": ["trace.zip"],
+  "reward": {
+    "qa_score": 0.91
+  }
+}

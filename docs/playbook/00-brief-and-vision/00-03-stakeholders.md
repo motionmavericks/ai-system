@@ -1,131 +1,131 @@
+<!-- ai:managed start file="docs/playbook/00-brief-and-vision/00-03-stakeholders.md" responsibility="docs" strategy="replace" -->
 ---
 title: "Motion Mavericks Stakeholders"
 doc_path: "docs/playbook/00-brief-and-vision/00-03-stakeholders.md"
 doc_type: "stakeholder-register"
 status: "Draft"
-version: "0.1.0"
+version: "0.2.0"
 owner: "Owen (Founder)"
-reviewers: []
-last_updated: "2025-09-18"
-project: "Motion Mavericks MVP"
-tags: [stakeholders, governance]
-source: ["00-agent-execution-brief", "repo"]
-ai_managed: true
+reviewers: ["Agency Partner Lead", "Client Success Lead"]
+last_updated: "2025-09-19"
+project: "Motion Mavericks Portal"
+tags: [stakeholders, governance, collaboration]
+links:
+  repo: "https://github.com/maverick/ai-system"
+  spec: "../../plan/HighLevel.Final.md"
+  design: "../03-ux-and-design/03-01-personas.md"
+  ticket: "<PLACEHOLDER>"
+language: "en-AU"
+tone: "Declarative"
 ---
 
-<!-- ai:managed start file="docs/playbook/00-brief-and-vision/00-03-stakeholders.md" responsibility="docs" strategy="replace" -->
 # Motion Mavericks Stakeholders
 
-> Status: **Draft** • Version: **0.1.0** • Updated: **2025-09-18**
+> Status: **Draft** • Version: **0.2.0** • Updated: **2025-09-19**
 
 <doc xmlns="urn:docs:universal"
      type="stakeholder-register"
      path="docs/playbook/00-brief-and-vision/00-03-stakeholders.md"
-     version="0.1.0"
+     version="0.2.0"
      status="Draft"
      owner="Owen (Founder)">
 
   <meta>
-    <tags>stakeholders, governance, motion-mavericks</tags>
+    <link rel="repo" href="https://github.com/maverick/ai-system"/>
+    <link rel="spec" href="../../plan/HighLevel.Final.md"/>
+    <link rel="design" href="../03-ux-and-design/03-01-personas.md"/>
+    <tags>stakeholders, governance, collaboration</tags>
   </meta>
 
   <sections>
 
-    <section id="overview" heading="Overview">
-      <instructions>Summarise stakeholder intent.</instructions>
-      <content><![CDATA[
-## Overview
-This register reflects the lean governance structure at Motion Mavericks, where Owen is the sole internal decision-maker who coordinates external crews, clients, and agencies for specialised expertise.
-]]></content>
-    </section>
-
     <section id="summary" heading="Summary">
-      <instructions>Key points.</instructions>
+      <instructions>Describe the purpose and expected outcome in 3–5 sentences.</instructions>
       <content><![CDATA[
 ## Summary
-- Identifies governance roles spanning product, security, compliance, operations, and client delivery.
-- Clarifies how external partners participate in RACI workflows while Owen retains final authority.
-- Provides contact placeholders to be replaced with contractual details once partnerships are confirmed.
+This register defines who influences, approves, or executes the Motion Mavericks portal rollout. It clarifies decision rights for core roles across Admin, Agency, Client, and specialist partners so accountability is baked into each milestone, task, and asset flow. Maintaining this structure keeps the lean team aligned while scaling agency participation.
 ]]></content>
     </section>
 
     <section id="context" heading="Context">
-      <instructions>Explain why this register is needed.</instructions>
+      <instructions>Outline the current situation, problem, drivers, and constraints.</instructions>
       <content><![CDATA[
 ## Context
-The Motion Mavericks MVP depends on disciplined coordination between Owen and trusted external specialists. Documenting decision rights avoids ambiguity when agencies or client crews join delivery and review cycles under tight timelines.
+The portal consolidates collaboration between Motion Mavericks, agency producers, and client stakeholders. Given Owen is the sole internal leader, clearly defined responsibilities are essential to avoid bottlenecks, especially when coordinating contracted security, reliability, and compliance specialists required for 99.9% availability, AU residency, and RPO/RTO commitments. This register supplements onboarding packs and runbooks.
 ]]></content>
     </section>
 
     <section id="scope" heading="Scope">
-      <instructions>Define inclusions/exclusions.</instructions>
+      <instructions>State in-scope items, out-of-scope exclusions, and key assumptions.</instructions>
       <content><![CDATA[
 ## Scope
-- Includes internal, client, and agency stakeholders that influence MVP launch readiness.
-- Excludes broader marketing, investor, or community stakeholders who review materials after go-live.
-- Assumes each external partner will nominate a primary contact recorded in the contract repository.
+- Captures stakeholders directly engaged in portal delivery, onboarding, and steady-state operations during 2025 pilot projects.
+- Excludes marketing collaborators or investors who review progress but do not influence backlog or release decisions.
+- Assumes each external organisation provides a primary and backup contact recorded in contract documents.
 ]]></content>
     </section>
 
     <section id="details" heading="Details">
-      <instructions>Provide stakeholder table.</instructions>
+      <instructions>Provide the core information the team needs (flows, architecture, tables, etc.). Use subsections as required.</instructions>
       <content><![CDATA[
 ## Details
-| Role | Person | Decision rights | RACI | Contact |
-|------|--------|-----------------|------|---------|
-| Founder & Product Owner | Owen (Founder) | Final decision authority across scope, prioritisation, and release | Accountable | <REDACTED> |
-| Client coaching crews | Primary client leads (external) | Feedback on workflows, acceptance of share governance | Consulted | <PLACEHOLDER> |
-| Security consultancy | Lead consultant (contracted) | Approves security controls, signed playback, rate limiting | Responsible | <PLACEHOLDER> |
-| Compliance advisor | Privacy/compliance agency (contracted) | Validates residency, retention, consent artefacts | Responsible | <PLACEHOLDER> |
-| Reliability & operations agency | DevOps/incident partner (contracted) | Executes SLO monitoring, webhook recovery drills | Responsible | <PLACEHOLDER> |
-| Finance bookkeeping service | External bookkeeper | Confirms spend reports, variance thresholds | Consulted | <PLACEHOLDER> |
-| Creative production partner | Video production crew (external) | Ensures asset readiness and delivery standards | Consulted | <PLACEHOLDER> |
+| Role | Stakeholder/Group | Decision rights | RACI | Contact cadence |
+|------|-------------------|-----------------|------|-----------------|
+| Portal Admin & Product Lead | Owen (Founder) | Sets roadmap, approves releases, arbitrates scope trade-offs | Accountable | Daily stand-up; weekly status digest |
+| Agency Producer Lead | MKTG production lead (named in contract) | Prioritises agency tasks, confirms milestone updates, approves asset readiness | Responsible | Daily during shoots; twice-weekly portal reviews |
+| Client Stakeholder | Lead client contact per project | Accepts deliverables, confirms share link access, raises compliance concerns | Consulted | Weekly account call; ad-hoc for approvals |
+| Guest Reviewer Delegates | Client-side reviewers added via share links | Provide review feedback within portal, flag playback issues | Informed | Within 48-hour review windows |
+| Security Specialist | Contracted security consultancy | Signs off authentication, share link hardening, rate limiting | Responsible | Fortnightly control review; incident-driven escalation |
+| Reliability & Operations Partner | External DevOps agency | Owns SLO monitoring, backup drills, incident response | Responsible | Weekly SLO check-in; monthly disaster-recovery rehearsal |
+| Compliance & Privacy Advisor | External compliance firm | Validates residency, retention, consent workflows, handles DSARs | Consulted | Monthly compliance touchpoint; per-DSAR engagement |
+| Finance & Procurement Support | External bookkeeper | Verifies vendor spend, tracks contract renewals | Consulted | Monthly financial review |
 ]]></content>
     </section>
 
-    <section id="users" heading="Users and stakeholders">
-      <instructions>Summarise stakeholder groups.</instructions>
+    <section id="references" heading="References">
+      <instructions>List supporting documents, tickets, or code paths using relative links where possible.</instructions>
       <content><![CDATA[
-## Users and stakeholders
-- **Internal**: Owen (Founder) owns prioritisation, documentation quality, and release governance.
-- **Clients**: Coaching crews provide workflow feedback, validate acceptance criteria, and flag compliance expectations from their organisations.
-- **Agencies**: Contracted security, compliance, reliability, finance, and creative partners supply specialised expertise aligned to documented requirements.
+## References
+- [High-level portal brief](../../plan/HighLevel.Final.md)
+- [Legacy MVP plan (context)](../../specs/legacy-mvp-plan.md)
+- [Portal onboarding playbook](../16-documentation-and-training/16-04-onboarding.md)
 ]]></content>
     </section>
 
     <section id="related" heading="Related">
-      <instructions>Cross-link docs.</instructions>
+      <instructions>Cross-link neighbouring documents.</instructions>
       <content><![CDATA[
 ## Related
-- [00-01-product-vision](../00-brief-and-vision/00-01-product-vision.md)
-- [05-02-access-management](../05-project-setup/05-02-access-management.md)
+- [00-01-product-vision](00-01-product-vision.md)
+- [02-05-definition-of-done](../02-requirements-and-scope/02-05-definition-of-done.md)
 ]]></content>
     </section>
 
     <section id="open_questions" heading="Open questions">
-      <instructions>Outstanding items.</instructions>
+      <instructions>Document unresolved considerations.</instructions>
       <content><![CDATA[
 ## Open questions
-- Which security and compliance agencies will be on retainer for the MVP delivery window?
-- Do client crews require formal SLAs for issue response times once they adopt the platform?
+- Confirm backups for agency and compliance roles to ensure continuity during leave or peak shoots.
+- Determine whether client stakeholders require direct access to error budget dashboards or curated summaries.
 ]]></content>
     </section>
 
     <section id="assumptions" heading="Assumptions">
-      <instructions>Document assumptions.</instructions>
+      <instructions>List assumptions to validate.</instructions>
       <content><![CDATA[
 ## Assumptions
-- Each external partner can commit to the documented RACI expectations; confirm during contract negotiations.
-- Communication channels for client crews will be consolidated into a single distribution list; validate before pilot onboarding.
+- Agencies agree to twice-weekly milestone reconciliations within the portal; validate in onboarding workshops.
+- Compliance advisor can access residency and retention telemetry without breaching client confidentiality clauses.
 ]]></content>
     </section>
 
     <section id="sources" heading="Sources">
-      <instructions>List references.</instructions>
+      <instructions>Attribute primary information inputs.</instructions>
       <content><![CDATA[
 ## Sources
-- docs/plan/HighLevel.Final.md (updated with stakeholder clarification from Owen)
-- docs/playbook/0-templates/03-playbook-docs-orchestration-guide.md
+- Motion Mavericks portal integrated execution brief (v0.3.0)
+- Stakeholder conversations logged by Owen (September 2025)
+- Draft agency contracts shared for portal pilot planning
 ]]></content>
     </section>
 

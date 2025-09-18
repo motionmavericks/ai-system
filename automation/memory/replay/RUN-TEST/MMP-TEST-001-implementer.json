@@ -1,0 +1,24 @@
+{
+  "ticket_id": "MMP-TEST-001",
+  "agent": "implementer",
+  "events": [
+    {
+      "type": "plan",
+      "detail": "Outlined steps: add telemetry collector script, update guardrails, run tests."
+    },
+    {
+      "type": "command",
+      "cmd": "pnpm lint",
+      "exit_code": 0,
+      "duration_seconds": 31.4
+    },
+    {
+      "type": "command",
+      "cmd": "pnpm test:unit --filter=telemetry",
+      "exit_code": 0,
+      "duration_seconds": 44.9
+    }
+  ],
+  "reward": 0.9,
+  "notes": "Telemetry script operational; documentation updated."
+}

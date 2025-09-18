@@ -1,0 +1,109 @@
+{
+  "meta": {
+    "productName": "Motion Mavericks Portal",
+    "repo": "https://github.com/maverick/ai-system",
+    "lastParsed": "2025-09-19",
+    "version": "0.3.0"
+  },
+  "vision": {
+    "mission": "Deliver a single secure portal that unifies Motion Mavericks, agency partners, and client guests around shared production milestones, tasks, assets, comments, notifications, and share links.",
+    "nonGoals": [
+      "Provide a public self-serve platform for non-partner agencies",
+      "Replace professional editing tools or media finishing workflows",
+      "Offer unrestricted asset downloads without residency/compliance approvals"
+    ],
+    "successMetrics": [
+      "≥90% of agency users complete first login within five minutes of invitation",
+      "100% of active production milestones tracked in the portal",
+      "Share links keep playback error rate below 1% and achieve ≥80% open rate within 48 hours",
+      "No critical accessibility or security regressions detected pre-release"
+    ]
+  },
+  "stakeholders": [
+    {"role": "Founder", "name": "Owen", "contact": "owen@motionmavericks.au", "responsibilities": ["Product direction", "Commercial approvals", "Final release go/no-go"]},
+    {"role": "Agency Partner Lead", "name": "<PLACEHOLDER>", "contact": "agency@motionmavericks.au", "responsibilities": ["Agency onboarding", "Feedback liaison"]},
+    {"role": "Client Success Lead", "name": "<PLACEHOLDER>", "contact": "clientsuccess@motionmavericks.au", "responsibilities": ["Support rotation", "Launch communications"]},
+    {"role": "Reliability Partner", "name": "<PLACEHOLDER>", "contact": "reliability@motionmavericks.au", "responsibilities": ["SLO management", "Incident response", "Disaster recovery"]}
+  ],
+  "constraints": {
+    "time": "Launch pilot agencies in current quarter with portal replacing legacy spreadsheets and drives",
+    "budget": "Operate within existing Motion Mavericks tooling spend while planning upgrades as adoption grows",
+    "regulatory": ["Australian Privacy Act", "GDPR data subject rights", "Spam compliance"],
+    "tech": ["Data residency in Australia (Neon syd1, AU-first CDN)", "RPO ≤24 h", "RTO ≤1 h", "99.9% availability"]
+  },
+  "risks": [
+    {"name": "Agency adoption lag", "probability": "medium", "impact": "high", "mitigation": "Provide onboarding packs, training webinars, and change management support"},
+    {"name": "Share link misuse or leakage", "probability": "medium", "impact": "high", "mitigation": "Signed tokens with TTL, audit logs, optional passphrases"},
+    {"name": "Residency breach via third-party services", "probability": "low", "impact": "high", "mitigation": "Maintain DPAs, monitor data locality, document residency exceptions"},
+    {"name": "Mux or provider outage", "probability": "low", "impact": "high", "mitigation": "DR drills, fallback communication, asset retry workflows"}
+  ],
+  "personas": [
+    {"id": "admin-owen", "summary": "Founder overseeing production visibility, ensuring agencies deliver on schedule."},
+    {"id": "agency-producer", "summary": "Agency partner managing milestones, tasks, and asset delivery."},
+    {"id": "client-stakeholder", "summary": "Client approver consuming share links, leaving feedback."},
+    {"id": "guest-reviewer", "summary": "External reviewer with temporary access to assets."}
+  ],
+  "targetUsers": ["Motion Mavericks Admin", "Agency Producer", "Client Stakeholder", "Guest Reviewer"],
+  "useCases": [
+    "Admin creates project with milestones and tasks for new production",
+    "Agency updates milestones, uploads assets, triggers notifications",
+    "Guest opens share link, reviews asset, leaves feedback",
+    "Client success monitors project health and audit trail"
+  ],
+  "requirements": {
+    "functional": [
+      "Role-based access for Admin, Agency, Guest with tenant isolation",
+      "Project dashboard with milestones, tasks, and status tracking",
+      "Asset ingestion via Mux with share link generation and audit logging",
+      "Notifications including digests, reminders, and webhook handling",
+      "Commenting and feedback threads tied to tasks and assets"
+    ],
+    "nonFunctional": [
+      "Availability 99.9% per month",
+      "API p95 latency ≤300 ms, share link validation ≤150 ms",
+      "Time-to-first-frame ≤3 s on 25 Mbps connections",
+      "WCAG 2.2 AA compliance for critical flows",
+      "Data residency in Australia, RPO ≤24 h, RTO ≤1 h"
+    ]
+  },
+  "stack": {
+    "frontend": ["Next.js 15 App Router", "TypeScript", "React", "Tailwind"],
+    "backend": ["Next.js 15 server actions", "Edge functions", "Node 20"],
+    "data": ["Neon Postgres", "Drizzle ORM", "Upstash Redis"],
+    "infra": ["Vercel", "Terraform/Terragrunt", "Grafana"],
+    "thirdParty": ["Mux", "Clerk", "Resend", "LaunchDarkly"]
+  },
+  "security": {
+    "baseline": ["Magic link authentication via Clerk", "Signed share tokens with expiry", "Audit logging for access events", "Secrets rotation policy"],
+    "dataClasses": ["Contact info", "Project metadata", "Asset metadata", "Comments", "Notification events"],
+    "threats": ["Token leakage", "Share link brute force", "Webhook spoofing", "Secrets exposure"]
+  },
+  "compliance": ["Australian Privacy Act", "GDPR"],
+  "environments": ["dev", "staging", "prod"],
+  "events": {
+    "domainEvents": ["ProjectCreated", "MilestoneStatusUpdated", "AssetUploaded", "ShareLinkGenerated", "NotificationDispatched"],
+    "analyticsEvents": ["dashboard.viewed", "milestone.completed", "share_link.opened", "asset.feedback_submitted"]
+  },
+  "apis": {
+    "style": "REST endpoints via Next.js route handlers with server actions",
+    "auth": "Clerk sessions for authenticated users, signed share tokens for guests",
+    "endpoints": [
+      "POST /api/projects",
+      "PATCH /api/milestones/{id}",
+      "POST /api/assets/upload",
+      "POST /api/share-links",
+      "POST /api/notifications/digest"
+    ]
+  },
+  "i18n": {
+    "locales": ["en-AU"]
+  },
+  "a11y": {
+    "targets": ["WCAG 2.2 AA"]
+  },
+  "glossary": [
+    {"term": "Share link", "definition": "Secure, time-bound URL granting guest access to specific assets."},
+    {"term": "Agency tenant", "definition": "Isolated workspace for a partner agency with scoped users and data."},
+    {"term": "Digest", "definition": "Scheduled notification summarising recent project activity."}
+  ]
+}

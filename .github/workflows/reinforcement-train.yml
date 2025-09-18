@@ -1,0 +1,43 @@
+name: Reinforcement Optimiser
+
+on:
+  schedule:
+    - cron: '0 13 * * *' # 11PM AEST daily
+  workflow_dispatch:
+    inputs:
+      run-id:
+        description: "Replay run identifier"
+        required: false
+
+jobs:
+  optimise:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Validate memory before optimisation
+        run: pnpm automation:memory:check
+      - name: Download replay artefacts
+        uses: actions/download-artifact@v4
+        with:
+          name: automation-replay
+          path: automation/memory/replay
+        continue-on-error: true
+      - name: Optimise agent programs (placeholder)
+        env:
+          DSPY_API_KEY: ${{ secrets.DSPY_API_KEY }}
+        run: |
+          echo "TODO: Run DSPy optimiser command"
+      - name: Compact memory after optimisation
+        run: pnpm automation:memory:compact
+      - name: Upload optimisation summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: optimisation-logs
+          path: automation/memory
+

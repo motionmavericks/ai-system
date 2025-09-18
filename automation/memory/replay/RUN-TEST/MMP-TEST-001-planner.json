@@ -1,0 +1,17 @@
+{
+  "ticket_id": "MMP-TEST-001",
+  "agent": "planner",
+  "events": [
+    {
+      "type": "analysis",
+      "detail": "Reviewed build spec non-functional requirements and security controls."
+    },
+    {
+      "type": "decision",
+      "detail": "Created subtasks for telemetry instrumentation and reward logging."
+    }
+  ],
+  "dependencies": [],
+  "reward": 0.82,
+  "notes": "Generated ticket ready for implementation with telemetry tasks."
+}

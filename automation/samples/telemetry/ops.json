@@ -1,0 +1,11 @@
+{
+  "status": "success",
+  "environment": "preview",
+  "url": "https://preview.motionmavericks.au",
+  "checks": {"18-01-01": "pass"},
+  "metrics": {
+    "smoke_latency_ms": 190,
+    "error_rate": 0.0
+  },
+  "reward": 0.95
+}

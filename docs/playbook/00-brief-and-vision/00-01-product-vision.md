@@ -1,51 +1,49 @@
+<!-- ai:managed start file="docs/playbook/00-brief-and-vision/00-01-product-vision.md" responsibility="docs" strategy="replace" -->
 ---
 title: "Motion Mavericks Product Vision"
 doc_path: "docs/playbook/00-brief-and-vision/00-01-product-vision.md"
 doc_type: "product-vision"
 status: "Draft"
-version: "0.1.0"
+version: "0.2.0"
 owner: "Owen (Founder)"
-reviewers: []
-last_updated: "2025-09-18"
+reviewers: ["Agency Partner Lead", "Client Success Lead"]
+last_updated: "2025-09-19"
 project: "Motion Mavericks Portal"
-tags: [vision, production-management, motion-mavericks]
-source: ["legacy-spec", "repo"]
-ai_managed: true
+tags: [vision, production-management, motion-mavericks, agency-collaboration]
+links:
+  repo: "https://github.com/maverick/ai-system"
+  spec: "../../plan/HighLevel.Final.md"
+  design: "../03-ux-and-design/03-02-journeys-and-flows.md"
+  ticket: "<PLACEHOLDER>"
+language: "en-AU"
+tone: "Declarative"
 ---
 
-<!-- ai:managed start file="docs/playbook/00-brief-and-vision/00-01-product-vision.md" responsibility="docs" strategy="replace" -->
 # Motion Mavericks Product Vision
 
-> Status: **Draft** • Version: **0.1.0** • Updated: **2025-09-18**
+> Status: **Draft** • Version: **0.2.0** • Updated: **2025-09-19**
 
 <doc xmlns="urn:docs:universal"
      type="product-vision"
      path="docs/playbook/00-brief-and-vision/00-01-product-vision.md"
-     version="0.1.0"
+     version="0.2.0"
      status="Draft"
      owner="Owen (Founder)">
 
   <meta>
-    <tags>vision, production-management, motion-mavericks</tags>
+    <link rel="repo" href="https://github.com/maverick/ai-system"/>
+    <link rel="spec" href="../../plan/HighLevel.Final.md"/>
+    <link rel="design" href="../03-ux-and-design/03-02-journeys-and-flows.md"/>
+    <tags>vision, production-management, motion-mavericks, agency-collaboration</tags>
   </meta>
 
   <sections>
 
-    <section id="overview" heading="Overview">
-      <instructions>High-level framing of the document.</instructions>
-      <content><![CDATA[
-## Overview
-Motion Mavericks operates as a Melbourne-based production company that collaborates with agencies and client organisations on fast-moving creative projects. The MVP portal centralises milestones, tasks, assets, notifications, and shareable links so Owen can run every engagement from a single system while keeping agencies accountable and clients confident.
-]]></content>
-    </section>
-
     <section id="summary" heading="Summary">
-      <instructions>Purpose and expected outcomes.</instructions>
+      <instructions>Describe the purpose and expected outcome in 3–5 sentences.</instructions>
       <content><![CDATA[
 ## Summary
-- Deliver one secure, low-friction workspace for Motion Mavericks (Admin) and agency partners to manage projects end-to-end.
-- Replace fragmented spreadsheets, email threads, and ad-hoc file drops with structured milestones, tasks, and deliverable tracking.
-- Provide controlled guest access so client decision-makers can review assets without bypassing governance or risking leaks.
+The Motion Mavericks portal delivers a single command centre for Admin, Agency, and Guest roles to coordinate every production milestone, task, and asset. It replaces scattered spreadsheets, shared drives, and email approvals with auditable workflows, role-aware navigation, and secure share links. Success means faster onboarding, confident client reviews, and operational discipline across availability, residency, and recovery targets.
 ]]></content>
     </section>
 
@@ -53,20 +51,7 @@ Motion Mavericks operates as a Melbourne-based production company that collabora
       <instructions>Outline the current situation, problem, drivers, and constraints.</instructions>
       <content><![CDATA[
 ## Context
-- Owen is the sole internal operator juggling production schedules, creative approvals, contractor coordination, and client communications.
-- Agencies such as MKTG, colour grading houses, and freelance crews rely on Motion Mavericks for direction yet struggle with inconsistent handovers and status visibility.
-- Clients expect a polished, accountable experience with clear progress across pre-production, shoot, post, and delivery.
-- The legacy plan targeted secure video delivery; the enduring need is broader—single source of truth for every milestone, task, asset, and notification across the production lifecycle.
-]]></content>
-    </section>
-
-    <section id="objectives" heading="Objectives">
-      <instructions>List measurable objectives or success criteria.</instructions>
-      <content><![CDATA[
-## Objectives
-- Launch the Motion Mavericks portal supporting Admin, Agency, and Guest roles with audited access and share links.
-- Centralise project tracking so 100% of active productions have milestones, tasks, and asset statuses recorded in the portal by pilot completion.
-- Reduce agency onboarding time to under five minutes via magic-link login and tenant-aware navigation.
+Motion Mavericks currently juggles projects across isolated tools, forcing Owen to mediate updates between agency partners and client stakeholders. Agencies such as MKTG lack real-time visibility on milestones, creating duplicated effort, delayed handovers, and risk of missed shoot or delivery dates. Clients receive ad-hoc file shares without traceability, undermining trust and complicating compliance obligations. The refreshed brief mandates a tenant-aware portal with 99.9% availability, AU-first data residency, RPO ≤24 hours, and RTO ≤1 hour to safeguard commercial work while keeping production velocity high.
 ]]></content>
     </section>
 
@@ -74,28 +59,20 @@ Motion Mavericks operates as a Melbourne-based production company that collabora
       <instructions>State in-scope items, out-of-scope exclusions, and key assumptions.</instructions>
       <content><![CDATA[
 ## Scope
-- Covers all functionality needed for project management: tenant model, agency onboarding, project dashboards, milestone/task hierarchy, asset management, commenting, notifications, and shareable links.
-- Includes foundational non-functional commitments: availability (99.9%), performance (ANZ p95 <400 ms TTFB), accessibility (WCAG 2.2 AA), Australian residency preference, and recovery targets (RPO ≤24 h, RTO ≤1 h).
-- Assumes continued use of the defined stack (Vercel, Next.js, Neon, Drizzle, Mux, Vercel Blob, Resend, Sentry, Vercel KV) and integration with existing production workflows.
+- In scope: Admin provisioning of agencies, project dashboard, milestone and task hierarchies, asset library with Mux-powered playback, comment threads, in-app and email notifications, and tokenised share links with expiry and optional passwords.
+- Non-functional scope: 99.9% monthly availability, p95 API latency <300 ms, p95 TTFB <400 ms across ANZ, p95 video start <3 s on 25 Mbps, WCAG 2.2 AA compliance, audit logging, Australian data residency with documented RPO/RTO drills.
+- Supporting scope: KPI telemetry, onboarding guides, and ops playbooks to sustain agency adoption and support rotations after launch.
 ]]></content>
     </section>
 
     <section id="details" heading="Details">
-      <instructions>Provide supporting narrative for the mission and constraints.</instructions>
+      <instructions>Provide the core information the team needs (flows, architecture, tables, etc.). Use subsections as required.</instructions>
       <content><![CDATA[
 ## Details
-- The portal treats Motion Mavericks as the admin tenant that provisions agencies (starting with MKTG) and associated users.
-- Every project decomposes into milestones and tasks, enabling precise tracking from briefs through delivery while surfacing due dates and statuses.
-- Assets (video, image, PDF, docs) live alongside commentary and share links, with Mux powering video processing and playback.
-- Notifications span email (Resend) and in-app feeds to keep agencies and clients aligned without relying on external chat tools.
-]]></content>
-    </section>
-
-    <section id="mission" heading="Mission">
-      <instructions>Statement capturing purpose and ambition.</instructions>
-      <content><![CDATA[
-## Mission
-Provide Motion Mavericks and its partner agencies with a single, secure portal that streamlines production management—from onboarding and milestones to deliverables and client review—without sacrificing control, privacy, or agility.
+- The portal positions Owen as the Admin who invites agencies, assigns producer leads, and governs cross-project visibility; agencies manage their deliverables while respecting tenant boundaries enforced by Neon row-level policies.
+- Each project lifecycle covers brief intake, milestone definition, linked tasks, asset delivery, review cycles, and completion sign-off, surfaced through dashboards and notification digests.
+- Share links generate signed, expiring tokens that log opens, playback quality, and feedback, ensuring guests can review content without exposing raw storage.
+- Operational guardrails integrate Telemetry (Sentry, analytics dashboards), automated backups, and incident escalation paths to protect continuity while meeting AU Privacy and GDPR commitments.
 ]]></content>
     </section>
 
@@ -103,11 +80,10 @@ Provide Motion Mavericks and its partner agencies with a single, secure portal t
       <instructions>List differentiated value propositions.</instructions>
       <content><![CDATA[
 ## Value proposition
-1. **Unified production command centre**: Admins and agencies share one truth for milestones, tasks, and assets, eliminating spreadsheet chaos.
-2. **Secure collaborative delivery**: Mux-backed video, controlled share links, and audit trails ensure clients only see approved material.
-3. **Frictionless agency onboarding**: Passwordless magic links and tenant-aware navigation reduce downtime for contracted crews.
-4. **Client-ready transparency**: Guests receive polished, view-only experiences with optional passwords, expiry, and playback telemetry.
-5. **Operational guardrails**: Built-in notifications, rate limiting, residency, and accessibility measures keep engagements compliant and resilient.
+1. **Unified production source of truth**: Centralises milestones, tasks, and deliverable statuses so every stakeholder sees accurate progress without reconciling spreadsheets.
+2. **Agency velocity with governance**: Tenant-aware navigation, magic-link onboarding, and audited updates let agency producers operate quickly while Owen retains oversight.
+3. **Client-ready share experience**: Expiring, branded share links with playback analytics and optional access codes reduce leakage risk and boost engagement confidence.
+4. **Resilient, compliant operations**: Built-in residency controls, recovery playbooks, and WCAG-aligned workflows satisfy procurement and legal checks for enterprise clients.
 ]]></content>
     </section>
 
@@ -115,12 +91,12 @@ Provide Motion Mavericks and its partner agencies with a single, secure portal t
       <instructions>Identify what the initiative will not attempt.</instructions>
       <content><![CDATA[
 ## Non-goals
-- Delivering custom-branding, theming, or white-label deployments for agencies in the MVP.
-- Introducing timecoded annotations, watermarking, or formal approval workflows.
-- Integrating Slack, Microsoft Teams, or other chat ecosystems before core flows stabilise.
-- Implementing SSO/SCIM, template automation, or complex budgeting modules in the initial release.
-- Running on-premise or multi-region active-active infrastructure ahead of validation.
-- Building public marketing sites or consumer-facing marketplaces within this scope.
+- Delivering custom production budgeting, invoicing, or resource scheduling modules in the MVP.
+- Introducing automated approval routing with timecoded annotations or advanced review tooling.
+- Providing deep integrations with Asana, Slack, or other third-party orchestration platforms prior to validation.
+- Supporting multi-region active-active deployments or customer-managed encryption keys at launch.
+- Offering public-facing marketing sites, discovery feeds, or marketplace capabilities.
+- Extending portal theming or white-labelling beyond Motion Mavericks branding in the first release.
 ]]></content>
     </section>
 
@@ -128,57 +104,61 @@ Provide Motion Mavericks and its partner agencies with a single, secure portal t
       <instructions>Detailed exclusions beyond non-goals.</instructions>
       <content><![CDATA[
 ## Out-of-scope
-- Custom domains or agency-branded portals; Vercel-hosted domain is sufficient for MVP.
-- Watermarking, download prevention beyond Mux’s baseline controls, and forensic watermarking.
-- Automated approval workflows; approvals remain manual with comment threads.
-- Automated template libraries for milestones/tasks; Owen defines structures per project manually in MVP.
-- Rich integrations with third-party PM tools (Asana, Monday.com) or file storage beyond Vercel Blob.
-- International data residency options beyond core AU-first deployment.
+- Automated import of historical project archives beyond curated CSV uploads handled during cutover.
+- SSO, SCIM provisioning, or Just-In-Time account creation for agency partners.
+- Watermarking, DRM overlays, or offline download prevention technologies beyond Mux defaults.
+- Real-time chat, commenting reactions, or presence indicators within the portal.
+- Automated talent or contractor scheduling workflows tied to milestones.
+- International data residency options, including EU or US storage, before compliance reviews are complete.
 ]]></content>
     </section>
 
     <section id="references" heading="References">
-      <instructions>List supporting documents using relative links.</instructions>
+      <instructions>List supporting documents, tickets, or code paths using relative links where possible.</instructions>
       <content><![CDATA[
 ## References
-- [Legacy MVP specification](../../specs/legacy-mvp-plan.md)
-- [Tech stack reference](../0-templates/03-playbook-docs-orchestration-guide.md)
+- [High-level portal brief](../../plan/HighLevel.Final.md)
+- [Legacy MVP plan (context only)](../../specs/legacy-mvp-plan.md)
+- [Playbook orchestration guide](../0-templates/03-playbook-docs-orchestration-guide.md)
 ]]></content>
     </section>
 
     <section id="related" heading="Related">
-      <instructions>Cross-link supporting documents.</instructions>
+      <instructions>Cross-link neighbouring documents.</instructions>
       <content><![CDATA[
 ## Related
-- [00-02-success-metrics](../00-brief-and-vision/00-02-success-metrics.md)
+- [00-02-success-metrics](00-02-success-metrics.md)
 - [02-03-non-functional-requirements](../02-requirements-and-scope/02-03-non-functional-requirements.md)
 ]]></content>
     </section>
 
     <section id="open_questions" heading="Open questions">
-      <instructions>Track unresolved points.</instructions>
+      <instructions>Document unresolved considerations.</instructions>
       <content><![CDATA[
 ## Open questions
-- Which agencies beyond MKTG will be onboarded in the first quarter after MVP launch, and do they require bespoke contractual terms?
-- What reporting cadence do clients expect for milestone updates (e.g., weekly digest versus real-time notifications)?
+- Confirm rollout order for subsequent agency partners after MKTG and determine contractual onboarding requirements.
+- Decide whether client stakeholders require scheduled digest emails in addition to event-driven notifications.
+- Validate the need for optional guest download permissions for specific deliverables after pilot feedback.
 ]]></content>
     </section>
 
     <section id="assumptions" heading="Assumptions">
-      <instructions>Document assumptions with validation intent.</instructions>
+      <instructions>List assumptions to validate.</instructions>
       <content><![CDATA[
 ## Assumptions
-- Agencies accept portal-based commenting instead of email threads; validate during pilot onboarding.
-- Guest viewers are satisfied with view-only experience without download access; capture feedback from first three client rollouts.
+- Agencies will adopt portal-based milestone updates when given concise training and accountability metrics.
+- Client guests prefer view-only share links with optional passcodes over receiving raw file transfers.
+- Motion Mavericks can sustain 99.9% availability on the defined Vercel and Neon stack with current budget envelopes.
 ]]></content>
     </section>
 
     <section id="sources" heading="Sources">
-      <instructions>List primary information sources.</instructions>
+      <instructions>Attribute primary information inputs.</instructions>
       <content><![CDATA[
 ## Sources
-- Provided legacy scope specification (2023 draft)
-- Motion Mavericks operational context from Owen
+- Motion Mavericks portal integrated execution brief (version 0.3.0)
+- Legacy MVP security scope (contextual reference)
+- Owen’s guidance on agency collaboration pain points (September 2025)
 ]]></content>
     </section>
 

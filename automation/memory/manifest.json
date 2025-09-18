@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "1.0.0",
+  "checksum": "30c2afc583b057c39c08dfbbdcda82ac938c5e9ad47e8a5ca72bf057df7554ef",
+  "lastCompacted": "2025-09-19T00:00:00.000Z",
+  "items": {
+    "facts": 1,
+    "vectors": 1,
+    "graphNodes": 1,
+    "graphEdges": 0
+  }
+}

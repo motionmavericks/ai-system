@@ -1,0 +1,26 @@
+{
+  "facts": [
+    {
+      "id": "fact-0001",
+      "type": "doc",
+      "summary": "Motion Mavericks playbook baseline captured on initial automation run.",
+      "source": "docs/playbook/00-brief-and-vision/00-01-product-vision.md",
+      "tags": ["docs", "baseline"],
+      "updatedAt": "2025-09-19T00:00:00.000Z"
+    }
+  ],
+  "vectors": [
+    {
+      "id": "vec-0001",
+      "ref": "fact-0001",
+      "embedding": [0.01, 0.02, -0.03],
+      "dimensions": 3
+    }
+  ],
+  "graph": {
+    "nodes": [
+      {"id": "fact-0001", "label": "doc"}
+    ],
+    "edges": []
+  }
+}
