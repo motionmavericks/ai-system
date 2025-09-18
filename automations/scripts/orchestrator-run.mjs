@@ -69,6 +69,18 @@ function dependenciesMet(ticketId, runState, queueMap) {
   return deps.every(dep => runState.tickets[dep]?.status === 'done');
 }
 
+function selectNextTicket(queue, runState, queueMap) {
+  for (const ticket of queue) {
+    const ticketState = runState.tickets[ticket.ticket_id];
+    if (!ticketState) continue;
+    if (ticketState.status === 'done' || ticketState.status === 'blocked') continue;
+    if (dependenciesMet(ticket.ticket_id, runState, queueMap)) {
+      return ticket.ticket_id;
+    }
+  }
+  return null;
+}
+
 async function appendHistory(state, ticketId, entry) {
   const ticket = state.tickets[ticketId];
   ticket.history.push(entry);
@@ -189,6 +201,20 @@ async function evaluateTicket(ticketId) {
   };
 }
 
+async function markBlocked(runId, ticketId, state, summary) {
+  await updateHeartbeat(runId, `${ticketId}:blocked`);
+  await appendHistory(state, ticketId, {
+    phase: 'blocked',
+    status: 'blocked',
+    summary,
+    timestamp: new Date().toISOString()
+  });
+  state.tickets[ticketId].status = 'blocked';
+  state.tickets[ticketId].phase = 'blocked';
+  state.updatedAt = new Date().toISOString();
+  await writeJson(runStatePath, state);
+}
+
 async function processTicket(runId, ticketId, state) {
   const result = await evaluateTicket(ticketId);
   const phase = result.status === 'done' ? 'knowledge' : 'blocked';
@@ -239,40 +265,28 @@ async function main() {
   const runState = await ensureRunState(runId);
   await ensureBootstrap(runId);
 
-  const pending = new Set(queue.map(ticket => ticket.ticket_id));
-
   const blocked = [];
 
-  while (pending.size > 0) {
-    let progressed = false;
-    for (const ticketId of Array.from(pending)) {
-      if (!dependenciesMet(ticketId, runState, queueMap)) {
-        continue;
-      }
-      const result = await processTicket(runId, ticketId, runState);
-      if (result.status !== 'done') {
-        blocked.push(ticketId);
-      }
-      pending.delete(ticketId);
-      progressed = true;
-    }
-
-    if (!progressed) {
-      for (const ticketId of pending) {
-        await updateHeartbeat(runId, `${ticketId}:blocked`);
-        await appendHistory(runState, ticketId, {
-          phase: 'blocked',
-          status: 'blocked',
-          summary: 'Blocked because dependencies failed acceptance checks.',
-          timestamp: new Date().toISOString()
-        });
-        runState.tickets[ticketId].status = 'blocked';
-        runState.tickets[ticketId].phase = 'blocked';
-        blocked.push(ticketId);
-      }
-      await writeJson(runStatePath, runState);
+  while (true) {
+    const ticketId = selectNextTicket(queue, runState, queueMap);
+    if (!ticketId) {
       break;
     }
+
+    const result = await processTicket(runId, ticketId, runState);
+    if (result.status !== 'done') {
+      blocked.push(ticketId);
+      break;
+    }
+  }
+
+  const unfinished = queue
+    .map(ticket => ticket.ticket_id)
+    .filter(id => !['done', 'blocked'].includes(runState.tickets[id]?.status));
+
+  for (const ticketId of unfinished) {
+    await markBlocked(runId, ticketId, runState, 'Blocked because dependencies failed acceptance checks.');
+    blocked.push(ticketId);
   }
 
   await updateHeartbeat(runId, blocked.length ? 'blocked' : 'postflight');
