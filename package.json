@@ -10,6 +10,10 @@
     "automation:run-state:init": "node automations/scripts/run-state-init.mjs",
     "automation:run:queue": "node automations/scripts/orchestrator-run.mjs",
     "automation:telemetry:collect": "node automations/scripts/collect-telemetry.mjs",
-    "automation:orchestration:smoke": "node automations/scripts/orchestration-smoke.mjs"
+    "automation:orchestration:smoke": "node automations/scripts/orchestration-smoke.mjs",
+    "db:migrate": "echo 'TODO: implement migrate'",
+    "db:rollback": "echo 'TODO: implement rollback'",
+    "db:seed": "echo 'TODO: implement seed'",
+    "db:drift": "echo 'TODO: implement drift check'"
   }
 }

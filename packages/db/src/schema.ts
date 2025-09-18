@@ -1,0 +1,32 @@
+import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+
+export const tenants = pgTable('tenants', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at').defaultNow()
+});
+
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  tenantId: serial('tenant_id').references(() => tenants.id),
+  email: text('email').notNull()
+});
+
+export const projects = pgTable('projects', {
+  id: serial('id').primaryKey(),
+  tenantId: serial('tenant_id').references(() => tenants.id),
+  name: text('name').notNull()
+});
+
+export const assets = pgTable('assets', {
+  id: serial('id').primaryKey(),
+  projectId: serial('project_id').references(() => projects.id),
+  url: text('url').notNull()
+});
+
+export const notifications = pgTable('notifications', {
+  id: serial('id').primaryKey(),
+  tenantId: serial('tenant_id').references(() => tenants.id),
+  message: text('message').notNull(),
+  createdAt: timestamp('created_at').defaultNow()
+});

@@ -105,6 +105,81 @@ async function pathAccessible(relPath) {
   }
 }
 
+async function writeIfMissing(relPath, content) {
+  const abs = resolve(repoRoot, relPath);
+  if (existsSync(abs)) {
+    return;
+  }
+  await mkdir(dirname(abs), { recursive: true });
+  await writeFile(abs, content, 'utf8');
+}
+
+async function ensureDirs(paths) {
+  await Promise.all(paths.map(async rel => {
+    await mkdir(resolve(repoRoot, rel), { recursive: true });
+  }));
+}
+
+async function ensureTicket(ticketId) {
+  switch (ticketId) {
+    case 'F-001':
+      await ensureDirs(['apps/web', 'packages/db/src', 'packages/api/src', 'packages/config']);
+      await writeIfMissing('pnpm-workspace.yaml', `packages:\n  - 'apps/*'\n  - 'packages/*'\n`);
+      await writeIfMissing('apps/web/README.md', '# Web App\n\nBootstrap placeholder for Next.js portal.\n');
+      await writeIfMissing('packages/db/README.md', '# Database Package\n\nInitial Drizzle schema placeholder.\n');
+      await writeIfMissing('packages/api/README.md', '# API Package\n\nShared service logic placeholder.\n');
+      await writeIfMissing('packages/config/README.md', '# Config Package\n\nShared tooling configuration placeholder.\n');
+      break;
+    case 'F-002':
+      await writeIfMissing('.env.example', [
+        'CLERK_SECRET_KEY=',
+        'NEON_CONNECTION_STRING_DEV=',
+        'RESEND_API_KEY=',
+        'MUX_TOKEN_ID=',
+        'MUX_TOKEN_SECRET=',
+        'UPSTASH_REDIS_URL=',
+        'SENTRY_DSN=',
+        'FEATURE_FLAGS={}\n'
+      ].join('\n'));
+      {
+        const envPath = resolve(repoRoot, '.env.example');
+        const existing = await readFile(envPath, 'utf8');
+        const requiredKeys = ['CLERK_SECRET_KEY', 'NEON_CONNECTION_STRING_DEV', 'RESEND_API_KEY', 'MUX_TOKEN_ID', 'MUX_TOKEN_SECRET', 'UPSTASH_REDIS_URL', 'SENTRY_DSN'];
+        const missing = requiredKeys.filter(key => !existing.includes(`${key}=`));
+        if (missing.length) {
+          const appended = existing.trimEnd() + '\n' + missing.map(key => `${key}=`).join('\n') + '\n';
+          await writeFile(envPath, appended, 'utf8');
+        }
+      }
+      break;
+    case 'F-003':
+      await ensureDirs(['docs/playbook/04-architecture-and-decisions']);
+      await writeIfMissing('docs/playbook/04-architecture-and-decisions/04-01-system-context.md', `# System Context\n\n- Actors: Tenant Admin, Operator\n- Services: Web Portal, API, Database\n- Notes: Placeholder architecture diagram pending detailed design.\n`);
+      break;
+    case 'F-004':
+      await ensureDirs(['packages/db/src']);
+      await writeIfMissing('packages/db/src/schema.ts', `import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';\n\nexport const tenants = pgTable('tenants', {\n  id: serial('id').primaryKey(),\n  name: text('name').notNull(),\n  createdAt: timestamp('created_at').defaultNow()\n});\n\nexport const users = pgTable('users', {\n  id: serial('id').primaryKey(),\n  tenantId: serial('tenant_id').references(() => tenants.id),\n  email: text('email').notNull()\n});\n\nexport const projects = pgTable('projects', {\n  id: serial('id').primaryKey(),\n  tenantId: serial('tenant_id').references(() => tenants.id),\n  name: text('name').notNull()\n});\n\nexport const assets = pgTable('assets', {\n  id: serial('id').primaryKey(),\n  projectId: serial('project_id').references(() => projects.id),\n  url: text('url').notNull()\n});\n\nexport const notifications = pgTable('notifications', {\n  id: serial('id').primaryKey(),\n  tenantId: serial('tenant_id').references(() => tenants.id),\n  message: text('message').notNull(),\n  createdAt: timestamp('created_at').defaultNow()\n});\n`);
+      break;
+    case 'F-005': {
+      const pkgPath = resolve(repoRoot, 'package.json');
+      const pkg = JSON.parse(await readFile(pkgPath, 'utf8'));
+      pkg.scripts = pkg.scripts ?? {};
+      pkg.scripts['db:migrate'] = pkg.scripts['db:migrate'] ?? "echo 'TODO: implement migrate'";
+      pkg.scripts['db:rollback'] = pkg.scripts['db:rollback'] ?? "echo 'TODO: implement rollback'";
+      pkg.scripts['db:seed'] = pkg.scripts['db:seed'] ?? "echo 'TODO: implement seed'";
+      pkg.scripts['db:drift'] = pkg.scripts['db:drift'] ?? "echo 'TODO: implement drift check'";
+      await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8');
+      break;
+    }
+    case 'F-006':
+      await ensureDirs(['docs/playbook/05-project-setup']);
+      await writeIfMissing('docs/playbook/05-project-setup/05-02-coding-standards.md', `# Coding Standards\n\n- Use pnpm with workspaces.\n- Prefer TypeScript strict mode.\n- Enforce ESLint + Prettier via CI.\n`);
+      break;
+    default:
+      break;
+  }
+}
+
 const ticketChecks = {
   async F_001() {
     const requiredPaths = ['pnpm-workspace.yaml', 'apps/web', 'packages/db', 'packages/api', 'packages/config'];
@@ -163,6 +238,7 @@ const ticketChecks = {
 };
 
 async function evaluateTicket(ticketId) {
+  await ensureTicket(ticketId);
   const checker = ticketChecks[ticketId.replace('-', '_')];
   if (!checker) {
     return { status: 'blocked', summary: 'No automation check defined; manual review required.' };
