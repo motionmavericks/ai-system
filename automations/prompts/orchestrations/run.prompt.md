@@ -1,7 +1,7 @@
 # Orchestration Run Prompt
 
 ## Purpose
-Coordinate planner, implementer, reviewer, QA, ops, and knowledge steward agents to execute the full autonomous build cycle for the Motion Mavericks portal, while maintaining persistent memory and closed-loop learning signals.
+Coordinate planner, implementer, reviewer, QA, ops, and knowledge steward agents to execute the full autonomous build cycle for the Motion Mavericks portal, while maintaining persistent memory and closed-loop learning signals. This prompt follows a successful preflight when `automations/prompts/orchestrations/command.prompt.md` is processing a `full_run` intent.
 
 ## Inputs
 - `automations/build-spec.yaml`
@@ -50,3 +50,4 @@ Coordinate planner, implementer, reviewer, QA, ops, and knowledge steward agents
 - Ensure each agent invocation logs inputs/outputs under `automations/logs/<agent>/<timestamp>.json` and appends traces to `automations/memory/replay/`.
 - Respect guardrails at every stage; do not auto-merge to production without required approvals flagged in ticket metadata.
 - Run `automations/scripts/memory-validate.mjs` if memory checksum deviates.
+- After all tickets resolve, instruct the controller to invoke `automations/prompts/orchestrations/postflight.prompt.md`. If blockers remain, loop back to the relevant agent prompt as specified in the `Ticket Loop` section and reflect the chosen filename in orchestration state.

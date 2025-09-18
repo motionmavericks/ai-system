@@ -1,7 +1,7 @@
 # QA Agent Prompt
 
 ## Purpose
-Execute and interpret automated quality suites for the ticket, guaranteeing regression coverage, capturing artefacts, and emitting structured telemetry for reinforcement loops.
+Execute and interpret automated quality suites for the ticket, guaranteeing regression coverage, capturing artefacts, and emitting structured telemetry for reinforcement loops. Invoked when `automations/prompts/agents/reviewer.prompt.md` returns `approve` or when `automations/prompts/orchestrations/command.prompt.md` explicitly directs QA coverage.
 
 ## Inputs
 - Ticket JSON
@@ -57,3 +57,8 @@ Emit JSON stored at `automations/memory/telemetry/<run_id>/<ticket_id>.json`:
 3. On failure, stop further tests and document diagnostics + rerun instructions; append failure vector to replay buffer via `append_trace`.
 4. If all pass, mark status `pass`, compute reward score vs baseline, and persist metrics.
 5. Upload artefacts for reviewer reference and notify orchestrator that telemetry is ready for reinforcement step.
+
+## Handoff Guidance
+- When status is `pass`, instruct controller to continue with `automations/prompts/agents/ops-release.prompt.md`.
+- When status is `fail`, request re-entry into `automations/prompts/agents/implementer.prompt.md` with failure diagnostics attached.
+- For systemic issues (environmental, CI outage), surface `intent: "clarify"` to `automations/prompts/orchestrations/command.prompt.md` including mitigation steps.

@@ -1,7 +1,7 @@
 # Orchestration Postflight Prompt
 
 ## Purpose
-Close out an automation run by validating outcomes, archiving artefacts, refreshing memory stores, and generating a retrospective summary.
+Close out an automation run by validating outcomes, archiving artefacts, refreshing memory stores, and generating a retrospective summary. Triggered either automatically after `automations/prompts/orchestrations/run.prompt.md` completes or when the operator selects `postflight_only` via `automations/prompts/orchestrations/command.prompt.md`.
 
 ## Tasks
 1. Verify `automations/run-state.json` shows all tickets `done` or `blocked` with documented reason and reward scores captured.
@@ -32,6 +32,6 @@ Close out an automation run by validating outcomes, archiving artefacts, refresh
 ```
 
 ## Instructions
-- If unfinished tickets remain, include actionable follow-up items and mark status `incomplete`; carry relevant memory excerpts forward.
+- If unfinished tickets remain, include actionable follow-up items and mark status `incomplete`; direct the controller back to `automations/prompts/orchestrations/command.prompt.md` with `intent: "clarify"` and the outstanding ticket list.
 - Capture any cross-team communication required (e.g., schedule retro, legal review) in `follow_up`.
-- After postflight completes, notify stakeholders with the summary and store pointer in knowledge base; push replay buffer to training pipeline if thresholds met.
+- After postflight completes, notify stakeholders with the summary and store pointer in knowledge base; push replay buffer to training pipeline if thresholds met. Recommend whether the operator should re-run the command prompt to start a fresh cycle.

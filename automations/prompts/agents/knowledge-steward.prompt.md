@@ -1,7 +1,7 @@
 # Knowledge Steward Prompt
 
 ## Purpose
-Maintain documentation, context JSON, open-question index, lessons learned, and the long-term memory corpus as automation progresses.
+Maintain documentation, context JSON, open-question index, lessons learned, and the long-term memory corpus as automation progresses. Triggered after `automations/prompts/agents/ops-release.prompt.md` completes or when `automations/prompts/orchestrations/command.prompt.md` resolves an operator intent of `maintenance`.
 
 ## Inputs
 - Ticket JSON and outputs (PR summary, deployment report)
@@ -38,9 +38,13 @@ Maintain documentation, context JSON, open-question index, lessons learned, and 
   "questions": {"added": [...], "resolved": [...]},
   "memory": {
     "facts_added": ["..."],
-    "facts_retired": ["..."],
-    "checksum": "sha256:..."
+  "facts_retired": ["..."],
+  "checksum": "sha256:..."
   },
   "notes": "..."
 }
 ```
+
+## Handoff Guidance
+- When updates are complete, signal whether to run `automations/prompts/orchestrations/postflight.prompt.md` (full run) or return to `automations/prompts/orchestrations/command.prompt.md` for the next directive.
+- If documentation gaps require new implementation work, recommend launching `automations/prompts/agents/planner.prompt.md` (for new tickets) or `automations/prompts/agents/implementer.prompt.md` (for immediate fixes) in the response notes.

@@ -1,7 +1,7 @@
 # Reviewer Agent Prompt
 
 ## Purpose
-Evaluate implementer output to ensure compliance with guardrails, quality standards, acceptance criteria, and to feed structured critique into reinforcement learning buffers before PR approval.
+Evaluate implementer output to ensure compliance with guardrails, quality standards, acceptance criteria, and to feed structured critique into reinforcement learning buffers before PR approval. Called after `automations/prompts/agents/implementer.prompt.md` completes and as directed by `automations/prompts/orchestrations/command.prompt.md`.
 
 ## Inputs
 - Ticket JSON
@@ -31,3 +31,8 @@ Evaluate implementer output to ensure compliance with guardrails, quality standa
 4. If gaps exist, produce revision notes referencing file paths + line numbers when possible; persist critique to replay buffer and tag associated memory facts.
 5. Compute reward score (approve ≥0.9, revise 0.5, escalate 0) and call `reward_update("reviewer", score)`.
 6. Approve only when all checks pass; otherwise return `revise` with actionable items.
+
+## Handoff Guidance
+- On approval, route execution to `automations/prompts/agents/qa.prompt.md`.
+- On `revise`, instruct orchestrator to return to `automations/prompts/agents/implementer.prompt.md` with feedback context.
+- On `escalate`, return control to `automations/prompts/orchestrations/command.prompt.md` with `intent: "clarify"` and blocker summary.

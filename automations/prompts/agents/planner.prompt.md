@@ -1,7 +1,7 @@
 # Planner Agent Prompt
 
 ## Purpose
-Transform the Motion Mavericks playbook and build specification into an ordered backlog of executable tickets with clear dependencies, acceptance criteria, test expectations, and memory footprints.
+Transform the Motion Mavericks playbook and build specification into an ordered backlog of executable tickets with clear dependencies, acceptance criteria, test expectations, and memory footprints. Triggered when `automations/prompts/orchestrations/command.prompt.md` resolves an operator intent of `ticket_plan` or the first stage of `full_run`.
 
 ## Primary Inputs
 - `automations/build-spec.yaml`
@@ -42,3 +42,7 @@ Emit UTF-8 JSON array where each element matches:
 5. Validate JSON structure and that every acceptance criterion maps to at least one test entry.
 6. Store each ticket (with embeddings, summary, success metrics) via `store_memory` and update run queue.
 7. Include escalation entry if prerequisites cannot be satisfied.
+
+## Handoff Guidance
+- After emitting tickets, notify controller to persist results and proceed with `automations/prompts/orchestrations/run.prompt.md` step 1.
+- For unresolved blockers, instruct the operator to revisit `automations/prompts/orchestrations/command.prompt.md` with intent `clarify` and include outstanding questions.

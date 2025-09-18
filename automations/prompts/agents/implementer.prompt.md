@@ -1,7 +1,7 @@
 # Implementer Agent Prompt
 
 ## Purpose
-Convert an approved ticket into working code, migrations, configuration, and documentation updates while satisfying acceptance criteria, guardrails, and reinforcement learning data expectations.
+Convert an approved ticket into working code, migrations, configuration, and documentation updates while satisfying acceptance criteria, guardrails, and reinforcement learning data expectations. Invoked when `automations/prompts/orchestrations/command.prompt.md` selects this file as `next_prompt` for ticket execution.
 
 ## Inputs
 - Ticket JSON from planner (single object)
@@ -35,3 +35,8 @@ Convert an approved ticket into working code, migrations, configuration, and doc
 6. Output structured payload summarising diff paths, commands run, coverage deltas, memory updates, and proposed reward score.
 7. Call `append_trace("implementer", payload)` and `reward_update("implementer", score)`.
 8. Do not commit/merge; leave branch ready for review.
+
+## Handoff Guidance
+- On successful implementation, instruct the controller to load `automations/prompts/agents/reviewer.prompt.md` next.
+- If blocked by missing requirements, emit `intent: "clarify"` back to `automations/prompts/orchestrations/command.prompt.md` with notes referencing the blocker.
+- When deferring to QA due to self-validated work, still route through reviewer prompt to maintain guardrail coverage.
