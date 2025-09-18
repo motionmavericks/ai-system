@@ -90,6 +90,25 @@ async function main() {
       // Execute planner only
       await agentExecutor.executePlanner(initialContext);
       console.log('✅ Planning completed.');
+      // Run postflight after planner
+      console.log('\n🔄 Running postflight after planner...');
+      const finalState = await stateManager.loadRunState();
+      try {
+        const postflightResult = await promptController.executePrompt(
+          'automations/prompts/orchestrations/postflight.prompt.md',
+          {
+            run_id: runId,
+            tickets_processed: 0,
+            blocked_tickets: [],
+            final_state: finalState,
+            reason: 'planner_complete'
+          }
+        );
+        await applyPromptUpdates({ result: postflightResult, stateManager, memoryManager });
+        console.log(`\n✅ Postflight completed: ${postflightResult.summary || 'Done'}`);
+      } catch (pfError) {
+        console.error('❌ Error in postflight:', pfError.message);
+      }
     } else if (commandResult.intent === 'ticket_execution') {
       // Execute specific ticket
       const ticketId = commandResult.ticket_id;
@@ -106,6 +125,7 @@ async function main() {
         memoryManager,
         guardEvaluator,
         agentExecutor,
+        promptController,
         runId
       );
     } else {
@@ -155,6 +175,25 @@ async function executeFullRun(
     if (preflightResult.blockers) {
       console.error('Blockers:', preflightResult.blockers);
     }
+    // Run postflight even on preflight failure
+    console.log('\n🔄 Running postflight after preflight failure...');
+    const finalState = await stateManager.loadRunState();
+    try {
+      const postflightResult = await promptController.executePrompt(
+        'automations/prompts/orchestrations/postflight.prompt.md',
+        {
+          run_id: runId,
+          tickets_processed: 0,
+          blocked_tickets: ['preflight_failed'],
+          final_state: finalState,
+          reason: 'preflight_failed'
+        }
+      );
+      await applyPromptUpdates({ result: postflightResult, stateManager, memoryManager });
+      console.log(`\n✅ Postflight completed: ${postflightResult.summary || 'Done'}`);
+    } catch (pfError) {
+      console.error('❌ Error in postflight:', pfError.message);
+    }
     process.exit(1);
   }
 
@@ -183,10 +222,12 @@ async function executeFullRun(
   let processedCount = 0;
 
   console.log('🔄 Entering prompt-driven execution loop...');
+  let postflightExecuted = false;
 
-  while (currentPrompt) {
-    context.run_state = await stateManager.loadRunState();
-    if (currentPrompt === runPromptPath) {
+  try {
+    while (currentPrompt) {
+      context.run_state = await stateManager.loadRunState();
+      if (currentPrompt === runPromptPath) {
       const runResult = await promptController.executePrompt(runPromptPath, context);
       await applyPromptUpdates({ result: runResult, stateManager, memoryManager });
 
@@ -289,16 +330,34 @@ async function executeFullRun(
       }
 
       console.log(`\n✅ Postflight completed: ${postflightResult.summary}`);
+      postflightExecuted = true;
       break;
     }
 
-    // Unknown prompt type
-    console.warn(`⚠️  Unrecognized prompt flow: ${currentPrompt}. Stopping.`);
-    break;
-  }
-
-    // Refresh run-state context for next iteration
-    context.run_state = await stateManager.loadRunState();
+      // Unknown prompt type
+      console.warn(`⚠️  Unrecognized prompt flow: ${currentPrompt}. Stopping.`);
+      break;
+    }
+  } finally {
+    // ALWAYS run postflight if not already executed
+    if (!postflightExecuted) {
+      console.log('\n🔄 Running mandatory postflight...');
+      const finalState = await stateManager.loadRunState();
+      try {
+        const postflightResult = await promptController.executePrompt(postflightPromptPath, {
+          run_id: runId,
+          tickets_processed: processedCount,
+          blocked_tickets: Array.from(blockedTickets),
+          final_state: finalState,
+          reason: 'automatic'
+        });
+        await memoryManager.updateHeartbeat(blockedTickets.size ? 'blocked' : 'postflight');
+        await applyPromptUpdates({ result: postflightResult, stateManager, memoryManager });
+        console.log(`\n✅ Postflight completed: ${postflightResult.summary || 'Done'}`);
+      } catch (pfError) {
+        console.error('❌ Error in mandatory postflight:', pfError.message);
+      }
+    }
   }
 
   console.log(`\n✅ Prompt-driven run completed. Tickets processed: ${processedCount}`);
@@ -313,6 +372,7 @@ async function executeTicket(
   memoryManager,
   guardEvaluator,
   agentExecutor,
+  promptController,
   runId
 ) {
   try {
@@ -337,11 +397,8 @@ async function executeTicket(
       console.log(`   Reason: ${result.reason}`);
     }
 
-    return result;
-
   } catch (error) {
     console.error(`❌ Error executing ticket ${ticket.ticket_id}:`, error);
-
     await stateManager.updateTicketStatus(
       ticket.ticket_id,
       'error',
@@ -351,13 +408,37 @@ async function executeTicket(
         error: error.message
       }
     );
-
-    return {
+    result = {
       success: false,
       phase: 'error',
       reason: error.message
     };
   }
+
+  // Run postflight for single ticket execution
+  console.log('\n🔄 Running postflight for ticket execution...');
+  const finalState = await stateManager.loadRunState();
+  const processedCount = result && result.success ? 1 : 0;
+  const blockedTickets = result && !result.success ? [ticket.ticket_id] : [];
+
+  try {
+    const postflightResult = await promptController.executePrompt(
+      'automations/prompts/orchestrations/postflight.prompt.md',
+      {
+        run_id: runId,
+        tickets_processed: processedCount,
+        blocked_tickets: blockedTickets,
+        final_state: finalState,
+        reason: 'single_ticket_execution'
+      }
+    );
+    await applyPromptUpdates({ result: postflightResult, stateManager, memoryManager });
+    console.log(`\n✅ Postflight completed: ${postflightResult.summary || 'Done'}`);
+  } catch (pfError) {
+    console.error('❌ Error in postflight:', pfError.message);
+  }
+
+  return result;
 }
 
 /**

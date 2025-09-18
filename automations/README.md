@@ -45,6 +45,7 @@ npm run automation:prompt -- --intent full_run
 - Control flow determined by prompt responses, not hard-coded logic
 - Each prompt returns structured JSON directing the next action
 - Supports complex orchestration chains through `next_prompt` and `follow_on` directives
+- **Mandatory postflight execution**: Postflight prompt automatically runs at the end of every orchestration run, ensuring proper cleanup and telemetry collection regardless of success, failure, or early termination
 
 ### Guard System
 - Machine-checkable prerequisites defined in `ticket-guards/<ticket_id>.json`
@@ -55,6 +56,7 @@ npm run automation:prompt -- --intent full_run
 - Sequential execution: implementer → reviewer → qa → ops-release → knowledge-steward
 - Automatic retry logic (up to 3 attempts) with feedback loops
 - State tracking throughout execution with phase management
+- Postflight execution guaranteed after all agent chains complete
 
 ### Memory & State Management
 - Persistent run state in `run-state.json`
