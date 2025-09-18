@@ -33,13 +33,14 @@ Emit UTF-8 JSON array where each element matches:
   "notes": "optional clarifications"
 }
 ```
+Additionally, emit a guard specification file at `automations/ticket-guards/<ticket_id>.json` describing machine-checkable prerequisites (e.g., required paths, environment keys, package scripts). These guard files must stay in sync with the ticket’s acceptance criteria so downstream automation can enforce completion.
 
 ## Workflow
 1. Load build spec, open questions, run state, and memory index to identify unresolved epics/features.
 2. Map prerequisites (data model before API before UI, etc.).
 3. For each scope area, reference playbook sections and derive atomic tickets; enrich with memory-derived insights (e.g., past incidents, feature flags).
 4. Assign risk level and dependencies; ensure every ticket links to documentation, tests, and telemetry expectations.
-5. Validate JSON structure and that every acceptance criterion maps to at least one test entry.
+5. Validate JSON structure and that every acceptance criterion maps to at least one test entry. Update the corresponding guard specification so it encodes those acceptance checks.
 6. Store each ticket (with embeddings, summary, success metrics) via `store_memory` and update run queue.
 7. Include escalation entry if prerequisites cannot be satisfied. When major epics lack human-facing coordination, recommend generating a companion task list via `automations/prompts/agents/task-creation.prompt.md` in the response notes.
 

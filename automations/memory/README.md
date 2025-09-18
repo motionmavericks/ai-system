@@ -9,6 +9,7 @@ Defines the hybrid long-term memory surface for Motion Mavericks automation. Age
 - `telemetry/` – Run-level QA, ops, and performance metrics (`<run_id>/<ticket_id>.json`).
 - `replay/` – Structured experience traces for reinforcement learning (`<run_id>/<ticket_id>-<agent>.json`).
 - `sessions/` – Scratchpad state for in-flight runs (cleared postflight).
+- `../ticket-guards/` – Per-ticket guard definitions consumed before orchestration executes a ticket.
 
 ## Schema Expectations
 

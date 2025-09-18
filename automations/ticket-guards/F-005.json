@@ -1,0 +1,11 @@
+{
+  "summaryOnSuccess": "Database scripts defined in package.json",
+  "summaryOnFailure": "Database scripts missing from package.json",
+  "checks": [
+    {
+      "type": "packageScripts",
+      "scripts": ["db:migrate", "db:rollback", "db:seed", "db:drift"],
+      "fix": "Add db:migrate, db:rollback, db:seed, db:drift scripts to package.json."
+    }
+  ]
+}

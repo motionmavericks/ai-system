@@ -10,22 +10,24 @@ Coordinate planner, implementer, reviewer, QA, ops, and knowledge steward agents
 - Agent prompt library (`automations/prompts/agents/*.prompt.md`)
 - Memory store (`automations/memory/**`) – hybrid index + replay buffer
 - Preflight status (must be ready)
+- Ticket guard specifications (`automations/ticket-guards/*.json`)
 
 ## High-Level Flow
 1. **Initialisation** – If `automations/run-state.json` lacks the current `run_id`, automatically run `npm run automation:run-state:init -- --run-id <run_id> --force` to regenerate from `automations/run-queue.json` and reload memory heartbeat metadata. Log the command under `updates.run_state` and include the diff. The helper `npm run automation:run:queue` performs this automatically when invoked directly.
 2. **Plan Generation (optional)** – Invoke Planner only when the queue is empty or requires refresh. Existing queues skip this step.
 3. **Ticket Execution Loop** – Continue iterating until every ticket in `automations/run-queue.json` reports `status: "done"` in `automations/run-state.json`:
    a. Select the next ready ticket (all dependencies marked `done`). Always process a single ticket at a time; if no ticket is ready, mark blockers and return.
-   b. Spawn Implementer with ticket + memory; collect outputs + execution traces.
-   c. Dispatch Reviewer; if `revise`, loop back to Implementer with feedback persisted to memory before selecting any new ticket.
-   d. When approved, run QA; on failure, return to Implementer with annotated logs + failure embeddings.
-   e. Upon QA success, trigger Ops/Release; capture deployment telemetry + reward signal.
-   f. Call Knowledge Steward to update docs/context and reconcile memory facts.
-   g. Append agent traces to `automations/memory/replay/<run_id>/<ticket_id>-<agent>.json` and ticket telemetry to `automations/memory/telemetry/<run_id>/<ticket_id>.json` at every phase.
-   h. Update `automations/memory/sessions/<run_id>/session.json` with the active phase and command transcript.
-   i. Refresh the heartbeat (`automations/memory/sessions/<run_id>/heartbeat.json`) with the current phase so monitoring reflects progress.
-   j. After Knowledge Steward completes, mark the ticket `done` in `automations/run-state.json`, append artefact links, persist rewards, and snapshot the session log.
-   k. Re-enter this loop (step 3a) until no tickets remain unresolved.
+   b. Evaluate the ticket guard specification (`automations/ticket-guards/<ticket_id>.json`). If any guard check fails, mark the ticket `blocked`, capture recommended actions, and proceed to the next ticket.
+   c. When guards pass, spawn Implementer with ticket + memory; collect outputs + execution traces.
+   d. Dispatch Reviewer; if `revise`, loop back to Implementer with feedback persisted to memory before selecting any new ticket.
+   e. When approved, run QA; on failure, return to Implementer with annotated logs + failure embeddings.
+   f. Upon QA success, trigger Ops/Release; capture deployment telemetry + reward signal.
+   g. Call Knowledge Steward to update docs/context and reconcile memory facts.
+   h. Append agent traces to `automations/memory/replay/<run_id>/<ticket_id>-<agent>.json` and ticket telemetry to `automations/memory/telemetry/<run_id>/<ticket_id>.json` at every phase.
+   i. Update `automations/memory/sessions/<run_id>/session.json` with the active phase and command transcript.
+   j. Refresh the heartbeat (`automations/memory/sessions/<run_id>/heartbeat.json`) with the current phase so monitoring reflects progress.
+   k. After Knowledge Steward completes, mark the ticket `done` in `automations/run-state.json`, append artefact links, persist rewards, and snapshot the session log.
+   l. Re-enter this loop (step 3a) until no tickets remain unresolved.
 3. **Post-loop Validation** – Ensure all tickets closed, CI passing, change log updated, memory compaction executed. If any ticket stays `blocked`, emit an escalation packet instead of claiming success.
 
 ## State Management
@@ -57,6 +59,7 @@ Each ticket entry must include a `phase` (`planner|implementer|reviewer|qa|ops_r
 - If planner output changes the queue, update `automations/run-state.json` to reflect any inserted or removed tickets before continuing the loop.
 - Ensure `updates.memory` includes file paths written to `sessions`, `replay`, or `telemetry` so downstream automation can verify persistence.
 - If the heartbeat daemon stops responding, pause execution, call `npm run automation:memory:bootstrap -- --run-id <run_id> --daemon` to restart it, update `automations/memory/sessions/<run_id>/heartbeat.json`, and record the restart in `updates.run_state`.
+- Guard specifications are authoritative; if no guard file exists for a ticket, mark it `blocked`, append a recommended action directing the planner to supply one, and halt further automation for that ticket.
 - When selecting the next agent, set `next_prompt` to the specific agent prompt (Implementer, Reviewer, QA, Ops, Knowledge) rather than back to this file; only once the ticket is `done` should `next_prompt` point to `automations/prompts/orchestrations/run.prompt.md`.
 
 ## Output Format

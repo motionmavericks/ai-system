@@ -1,0 +1,21 @@
+{
+  "summaryOnSuccess": "Environment template contains documented provider keys",
+  "summaryOnFailure": "Environment template is missing required provider secrets",
+  "checks": [
+    { "type": "pathExists", "path": ".env.example", "fix": "Add .env.example template to repository root." },
+    {
+      "type": "fileContainsAll",
+      "path": ".env.example",
+      "needles": [
+        "CLERK_SECRET_KEY=",
+        "NEON_CONNECTION_STRING_DEV=",
+        "RESEND_API_KEY=",
+        "MUX_TOKEN_ID=",
+        "MUX_TOKEN_SECRET=",
+        "UPSTASH_REDIS_URL=",
+        "SENTRY_DSN="
+      ],
+      "fix": "Document missing environment keys in .env.example."
+    }
+  ]
+}

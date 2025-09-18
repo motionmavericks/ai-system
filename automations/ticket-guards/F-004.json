@@ -1,0 +1,7 @@
+{
+  "summaryOnSuccess": "Drizzle schema skeleton in place",
+  "summaryOnFailure": "Drizzle schema skeleton missing",
+  "checks": [
+    { "type": "pathExists", "path": "packages/db/src/schema.ts", "fix": "Add Drizzle schema skeleton (tenants/users/projects/assets/notifications)." }
+  ]
+}

@@ -26,8 +26,8 @@ Controller agent (Orchestrator) coordinates role turn-taking and manages shared 
 ## 2. Artefact Flow
 
 0. State initialisation: the orchestrator auto-runs `npm run automation:run-state:init -- --run-id <run_id>` to sync `automations/run-state.json` with the run queue, then starts the heartbeat daemon via `npm run automation:memory:bootstrap -- --run-id <run_id> --daemon` so telemetry and replay scaffolding exist. The CLI helper `npm run automation:run:queue` performs these steps automatically.
-1. Planner ingests build spec → emits structured plan (`automations/run-queue.json`) and writes scope embeddings to long-term memory. The orchestrator records each planned ticket in `automations/run-state.json` with `phase: "planner"`.
-2. Orchestrator selects next ready ticket, loads relevant memory slices, and passes to Implementer.
+1. Planner ingests build spec → emits structured plan (`automations/run-queue.json`) and writes scope embeddings to long-term memory. For each ticket, the planner also emits a guard specification (`automations/ticket-guards/<ticket_id>.json`) containing machine-checkable prerequisite checks. The orchestrator records each planned ticket in `automations/run-state.json` with `phase: "planner"`.
+2. Orchestrator selects next ready ticket, loads relevant memory slices, evaluates the guard specification, and only passes guard-complete tickets to Implementer.
 3. Implementer writes code, runs targeted unit tests, opens draft PR, and records execution traces (commands, failures) to short-term memory.
 4. Reviewer checks diff; on failure, ticket loops back to Implementer with critique persisted for reuse.
 5. QA runs full suite (unit, integration, e2e, accessibility, performance smoke) via GitHub Actions dispatcher and pushes structured metrics to telemetry store.
@@ -39,6 +39,7 @@ Memory layers:
 - **Short-term scratchpad** – JSON files per run under `automations/memory/sessions/<run_id>/`.
 - **Long-term fact store** – Hybrid memory index (`automations/memory/index.json`) consolidating embeddings (vector similarity), relationships (graph adjacency list), and keyed facts for low-latency lookups.
 - **Experience buffer** – `automations/memory/replay/` capturing agent traces for DSPy/RL fine-tuning.
+- **Guard specifications** – `automations/ticket-guards/` JSON files describing prerequisite checks per ticket, consumed by the orchestrator before execution.
 - **Orchestration state** – `automations/run-state.json` capturing `tickets.<id>.phase` so runs can resume the exact agent turn if interrupted.
 
 ## 3. Ticket Schema (JSON)

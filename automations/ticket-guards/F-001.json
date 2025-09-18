@@ -1,0 +1,11 @@
+{
+  "summaryOnSuccess": "Repository scaffold present (workspace file + base packages)",
+  "summaryOnFailure": "Repository scaffold missing required workspace directories",
+  "checks": [
+    { "type": "pathExists", "path": "pnpm-workspace.yaml", "fix": "Commit pnpm workspace descriptor." },
+    { "type": "pathExists", "path": "apps/web", "fix": "Scaffold Next.js web app under apps/web." },
+    { "type": "pathExists", "path": "packages/db", "fix": "Create database package under packages/db." },
+    { "type": "pathExists", "path": "packages/api", "fix": "Create shared API package under packages/api." },
+    { "type": "pathExists", "path": "packages/config", "fix": "Create shared tooling config under packages/config." }
+  ]
+}

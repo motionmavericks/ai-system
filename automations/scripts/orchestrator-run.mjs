@@ -2,7 +2,7 @@
 import { readFile, writeFile, mkdir, access } from 'fs/promises';
 import { existsSync, constants } from 'fs';
 import { resolve, dirname, join } from 'path';
-import { fileURLToPath, pathToFileURL } from 'url';
+import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -105,59 +105,92 @@ async function pathAccessible(relPath) {
   }
 }
 
-async function writeIfMissing(relPath, content) {
-  const abs = resolve(repoRoot, relPath);
-  if (existsSync(abs)) {
-    return;
+const guardDir = resolve(repoRoot, 'automations/ticket-guards');
+
+const guardEvaluators = {
+  async pathExists(check) {
+    const ok = await pathAccessible(check.path);
+    if (ok) return { ok: true };
+    return {
+      ok: false,
+      reason: `Missing required path: ${check.path}`
+    };
+  },
+  async fileContainsAll(check) {
+    const abs = resolve(repoRoot, check.path);
+    if (!existsSync(abs)) {
+      return { ok: false, reason: `Missing required file: ${check.path}` };
+    }
+    const contents = await readFile(abs, 'utf8');
+    const missing = (check.needles ?? []).filter(needle => !contents.includes(needle));
+    if (missing.length) {
+      return { ok: false, reason: `${check.path} missing tokens: ${missing.join(', ')}` };
+    }
+    return { ok: true };
+  },
+  async packageScripts(check) {
+    const pkg = JSON.parse(await readFile(resolve(repoRoot, 'package.json'), 'utf8'));
+    const scripts = pkg.scripts ?? {};
+    const missing = (check.scripts ?? []).filter(script => !scripts[script]);
+    if (missing.length) {
+      return { ok: false, reason: `package.json missing scripts: ${missing.join(', ')}` };
+    }
+    return { ok: true };
   }
-  await mkdir(dirname(abs), { recursive: true });
-  await writeFile(abs, content, 'utf8');
-}
+};
 
-const handlersDir = resolve(repoRoot, 'automations/scripts/ticket-handlers');
-
-async function loadTicketHandler(ticketId) {
-  const modulePath = resolve(handlersDir, `${ticketId}.mjs`);
-  if (!existsSync(modulePath)) {
+async function loadTicketGuard(ticketId) {
+  const guardPath = resolve(guardDir, `${ticketId}.json`);
+  if (!existsSync(guardPath)) {
     return null;
   }
-  const moduleUrl = pathToFileURL(modulePath).href;
-  return import(moduleUrl);
+  return readJson(guardPath);
 }
 
-async function processTicket(runId, ticketId, state, queueMap) {
-  const handler = await loadTicketHandler(ticketId);
-  let result;
-
-  if (handler && typeof handler.execute === 'function') {
-    const context = {
-      repoRoot,
-      runId,
-      ticket: queueMap.get(ticketId),
-      runStatePath,
-      writeJson,
-      readFile,
-      writeFile,
-      mkdir,
-      access,
-      existsSync,
-      pathAccessible,
-      writeIfMissing
-    };
-    result = await handler.execute(context);
-  } else {
-    result = {
+async function evaluateTicket(ticketId) {
+  const guard = await loadTicketGuard(ticketId);
+  if (!guard) {
+    return {
       status: 'blocked',
-      summary: `No automated handler defined for ${ticketId}; manual intervention required.`
+      summary: `No guard definition found for ${ticketId}.` ,
+      recommended_actions: ['Update ticket planning to include automations/ticket-guards entry.']
     };
   }
 
-  if (!result || !result.status) {
-    result = {
+  const failures = [];
+  const actions = [];
+
+  for (const check of guard.checks ?? []) {
+    const evaluator = guardEvaluators[check.type];
+    if (!evaluator) {
+      failures.push(`Unknown guard check type: ${check.type}`);
+      if (check.fix) actions.push(check.fix);
+      continue;
+    }
+    const result = await evaluator(check);
+    if (!result.ok) {
+      failures.push(result.reason);
+      if (check.fix) actions.push(check.fix);
+    }
+  }
+
+  if (failures.length) {
+    return {
       status: 'blocked',
-      summary: `Handler for ${ticketId} returned no status.`
+      summary: guard.summaryOnFailure ?? `Guard checks failed for ${ticketId}.`,
+      details: failures,
+      recommended_actions: actions
     };
   }
+
+  return {
+    status: 'done',
+    summary: guard.summaryOnSuccess ?? `Guard checks passed for ${ticketId}.`
+  };
+}
+
+async function processTicket(runId, ticketId, state) {
+  const result = await evaluateTicket(ticketId);
   const phase = result.status === 'done' ? 'knowledge' : 'blocked';
 
   await updateHeartbeat(runId, `${ticketId}:${phase}`);
@@ -165,6 +198,8 @@ async function processTicket(runId, ticketId, state, queueMap) {
     phase,
     status: result.status,
     summary: result.summary,
+    details: result.details,
+    recommended_actions: result.recommended_actions,
     timestamp: new Date().toISOString()
   });
 
@@ -174,6 +209,8 @@ async function processTicket(runId, ticketId, state, queueMap) {
     phase,
     summary: result.summary,
     status: result.status,
+    details: result.details,
+    recommended_actions: result.recommended_actions,
     timestamp: new Date().toISOString()
   });
 
@@ -190,7 +227,7 @@ async function processTicket(runId, ticketId, state, queueMap) {
   await writeJson(runStatePath, state);
   await updateHeartbeat(runId, `${ticketId}:${result.status}`);
 
-  return result.status === 'done';
+  return result;
 }
 
 async function main() {
@@ -212,8 +249,8 @@ async function main() {
       if (!dependenciesMet(ticketId, runState, queueMap)) {
         continue;
       }
-      const succeeded = await processTicket(runId, ticketId, runState, queueMap);
-      if (!succeeded) {
+      const result = await processTicket(runId, ticketId, runState);
+      if (result.status !== 'done') {
         blocked.push(ticketId);
       }
       pending.delete(ticketId);
@@ -241,7 +278,8 @@ async function main() {
   await updateHeartbeat(runId, blocked.length ? 'blocked' : 'postflight');
 
   if (blocked.length) {
-    console.error(`❌ Queue halted. Blocked tickets: ${blocked.join(', ')}`);
+    console.error(`❌ Queue halted. Blocked tickets: ${blocked.join(', ')}.`);
+    console.error('Refer to automations/run-state.json for detailed guard failures.');
     process.exit(1);
   }
 

@@ -10,6 +10,6 @@ Utility scripts referenced by guardrails, CI, and orchestration prompts.
 | `memory-bootstrap.mjs` | Creates session/replay/telemetry scaffolding and optional heartbeat daemon for a run. | `node automations/scripts/memory-bootstrap.mjs --run-id RUN-20250919 --daemon` |
 | `run-state-init.mjs` | Generates `automations/run-state.json` from the current run queue. | `node automations/scripts/run-state-init.mjs --run-id RUN-20250919` |
 | `orchestrator-run.mjs` | Executes the ticket queue end-to-end, updating run-state, replay, telemetry, and heartbeat files. | `node automations/scripts/orchestrator-run.mjs` |
-| `ticket-handlers/*.mjs` | Per-ticket automation modules invoked by `orchestrator-run.mjs`. | Managed automatically; run via `npm run automation:run:queue` |
+| `../ticket-guards/*.json` | Guard definitions for each ticket (consumed by `orchestrator-run.mjs`). | Generated alongside tickets; `npm run automation:run:queue` evaluates them |
 
 All scripts assume execution from repository root and require Node.js ≥20.

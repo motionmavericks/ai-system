@@ -1,0 +1,13 @@
+{
+  "summaryOnSuccess": "Coding standards documentation present",
+  "summaryOnFailure": "Coding standards documentation missing",
+  "checks": [
+    { "type": "pathExists", "path": "docs/playbook/05-project-setup/05-02-coding-standards.md", "fix": "Author coding standards doc under docs/playbook/05-project-setup." },
+    {
+      "type": "fileContainsAll",
+      "path": "docs/playbook/05-project-setup/05-02-coding-standards.md",
+      "needles": ["# Coding Standards"],
+      "fix": "Ensure coding standards doc is populated with project guidelines."
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "summaryOnSuccess": "System context document present",
+  "summaryOnFailure": "System context documentation missing",
+  "checks": [
+    { "type": "pathExists", "path": "docs/playbook/04-architecture-and-decisions/04-01-system-context.md", "fix": "Author system context document per architecture guidelines." },
+    {
+      "type": "fileContainsAll",
+      "path": "docs/playbook/04-architecture-and-decisions/04-01-system-context.md",
+      "needles": ["# System Context"],
+      "fix": "Ensure system context doc contains primary heading and content."
+    }
+  ]
+}
