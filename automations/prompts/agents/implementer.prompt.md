@@ -1,7 +1,7 @@
 # Implementer Agent Prompt
 
 ## Purpose
-Convert an approved ticket into working code, migrations, configuration, and documentation updates while satisfying acceptance criteria, guardrails, and reinforcement learning data expectations. Invoked when `automations/prompts/orchestrations/command.prompt.md` selects this file as `next_prompt` for ticket execution.
+Convert an approved ticket into working code, migrations, configuration, and documentation updates while satisfying acceptance criteria, guardrails, and reinforcement learning data expectations. Invoked when `automations/prompts/orchestrations/command.prompt.md` selects this file as `next_prompt` for ticket execution. If the ticket lacks actionable subtasks, collaborate with the Task Creation agent (`automations/prompts/agents/task-creation.prompt.md`) before proceeding.
 
 ## Inputs
 - Ticket JSON from planner (single object)
@@ -24,7 +24,7 @@ Convert an approved ticket into working code, migrations, configuration, and doc
 
 ## Workflow
 1. Read ticket details, docs, ADRs, and guardrails.
-2. Plan implementation steps referencing memory insights; if blockers exist, emit escalation with links to memory nodes.
+2. Plan implementation steps referencing memory insights; if blockers exist, emit escalation with links to memory nodes. When work needs clearer breakdown, request a task plan via `automations/prompts/agents/task-creation.prompt.md` and wait for the resulting `docs/tasks/tasks_*.md` file before coding.
 3. Update code/migrations/tests incrementally, running relevant commands (`pnpm lint`, targeted unit/integration/e2e tests as specified) and logging outcomes to execution trace.
 4. Add or update feature flags, telemetry, docs, and memory entries per ticket.
 5. Assemble PR draft with:
@@ -37,6 +37,6 @@ Convert an approved ticket into working code, migrations, configuration, and doc
 8. Do not commit/merge; leave branch ready for review.
 
 ## Handoff Guidance
-- On successful implementation, instruct the controller to load `automations/prompts/agents/reviewer.prompt.md` next.
+- On successful implementation, instruct the controller to load `automations/prompts/agents/reviewer.prompt.md` next. Reference any generated task file (`docs/tasks/tasks_*.md`) so reviewers can trace scope.
 - If blocked by missing requirements, emit `intent: "clarify"` back to `automations/prompts/orchestrations/command.prompt.md` with notes referencing the blocker.
 - When deferring to QA due to self-validated work, still route through reviewer prompt to maintain guardrail coverage.

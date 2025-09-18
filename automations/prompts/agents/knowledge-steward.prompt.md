@@ -25,7 +25,7 @@ Maintain documentation, context JSON, open-question index, lessons learned, and 
 - Memory diff summary (facts added/retired, checksum).
 
 ## Workflow
-1. Review ticket scope for documentation touchpoints and related memory nodes.
+1. Review ticket scope for documentation touchpoints and related memory nodes. If a tasks plan exists under `docs/tasks/`, incorporate new lessons or mark completed items.
 2. Apply updates abiding by template usage guide and orchestration rules.
 3. Run structural validation (headings, references) if tooling available; otherwise manually verify.
 4. Update indexes (`open-questions.md`, change log) and confirm dates; push knowledge snippets to memory store via `store_memory`.
@@ -46,5 +46,5 @@ Maintain documentation, context JSON, open-question index, lessons learned, and 
 ```
 
 ## Handoff Guidance
-- When updates are complete, signal whether to run `automations/prompts/orchestrations/postflight.prompt.md` (full run) or return to `automations/prompts/orchestrations/command.prompt.md` for the next directive.
-- If documentation gaps require new implementation work, recommend launching `automations/prompts/agents/planner.prompt.md` (for new tickets) or `automations/prompts/agents/implementer.prompt.md` (for immediate fixes) in the response notes.
+- When updates are complete, signal whether to run `automations/prompts/orchestrations/postflight.prompt.md` (full run) or return to `automations/prompts/orchestrations/command.prompt.md` for the next directive. Mention any refreshed task files so operators can track doc follow-up.
+- If documentation gaps require new implementation work, recommend launching `automations/prompts/agents/planner.prompt.md` (for new tickets) or `automations/prompts/agents/implementer.prompt.md` (for immediate fixes) in the response notes. When human coordination is needed, point the orchestrator to `automations/prompts/agents/task-creation.prompt.md`.

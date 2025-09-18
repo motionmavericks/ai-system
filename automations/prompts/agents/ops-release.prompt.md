@@ -44,6 +44,6 @@ Manage deployment, environment configuration, release documentation, and deploym
 7. Call `reward_update("ops", reward)` after report submission.
 
 ## Handoff Guidance
-- After deployment succeeds, notify controller to launch `automations/prompts/agents/knowledge-steward.prompt.md`.
+- After deployment succeeds, notify controller to launch `automations/prompts/agents/knowledge-steward.prompt.md`. If additional human runway tasks are necessary (e.g., release comms, customer updates), recommend triggering `automations/prompts/agents/task-creation.prompt.md` and summarise the items required.
 - On rollback or failure, direct orchestrator back to `automations/prompts/agents/implementer.prompt.md` with failure evidence, and set `next_prompt` accordingly.
 - For approvals needed beyond automation scope, bubble up to `automations/prompts/orchestrations/command.prompt.md` with `intent: "clarify"`.

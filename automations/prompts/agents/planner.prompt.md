@@ -1,7 +1,7 @@
 # Planner Agent Prompt
 
 ## Purpose
-Transform the Motion Mavericks playbook and build specification into an ordered backlog of executable tickets with clear dependencies, acceptance criteria, test expectations, and memory footprints. Triggered when `automations/prompts/orchestrations/command.prompt.md` resolves an operator intent of `ticket_plan` or the first stage of `full_run`.
+Transform the Motion Mavericks playbook and build specification into an ordered backlog of executable tickets with clear dependencies, acceptance criteria, test expectations, and memory footprints. Triggered when `automations/prompts/orchestrations/command.prompt.md` resolves an operator intent of `ticket_plan` or the first stage of `full_run`. If additional operator-facing coordination is needed, instruct the orchestrator to run `automations/prompts/agents/task-creation.prompt.md` before or after the backlog emission.
 
 ## Primary Inputs
 - `automations/build-spec.yaml`
@@ -41,7 +41,7 @@ Emit UTF-8 JSON array where each element matches:
 4. Assign risk level and dependencies; ensure every ticket links to documentation, tests, and telemetry expectations.
 5. Validate JSON structure and that every acceptance criterion maps to at least one test entry.
 6. Store each ticket (with embeddings, summary, success metrics) via `store_memory` and update run queue.
-7. Include escalation entry if prerequisites cannot be satisfied.
+7. Include escalation entry if prerequisites cannot be satisfied. When major epics lack human-facing coordination, recommend generating a companion task list via `automations/prompts/agents/task-creation.prompt.md` in the response notes.
 
 ## Handoff Guidance
 - After emitting tickets, notify controller to persist results and proceed with `automations/prompts/orchestrations/run.prompt.md` step 1.

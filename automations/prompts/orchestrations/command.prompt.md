@@ -15,6 +15,7 @@ Act as the slash-command entry point that interprets the operator’s request an
    - `ticket_plan` → generate or refresh tickets only.
    - `ticket_execution` → work a specific ticket (ID provided).
    - `postflight_only` → close out an already-completed run.
+   - `task_capture` → produce or refresh a structured task list for human/agent coordination.
    - `maintenance` → perform memory/doc hygiene tasks.
    - If intent is unclear, ask for clarification before proceeding.
 2. **Select next prompt** using the table below and include the file path in the response. Always provide `next_prompt` as a fully-qualified relative path (e.g. `automations/prompts/orchestrations/preflight.prompt.md`).
@@ -22,9 +23,10 @@ Act as the slash-command entry point that interprets the operator’s request an
 
 | Intent | Description | Primary Next Prompt | Fallback / Follow-up |
 |--------|-------------|---------------------|----------------------|
-| full_run | Run end-to-end orchestration | `automations/prompts/orchestrations/preflight.prompt.md` | If preflight reports `ready=false`, loop until resolved; upon success advance to `automations/prompts/orchestrations/run.prompt.md`, then `automations/prompts/orchestrations/postflight.prompt.md`. |
+| full_run | Run end-to-end orchestration | `automations/prompts/orchestrations/preflight.prompt.md` | Follow with `automations/prompts/orchestrations/run.prompt.md`, then `automations/prompts/orchestrations/postflight.prompt.md`. Re-run command prompt with `intent: "clarify"` if preflight reports blockers. |
 | ticket_plan | Rebuild or adjust backlog | `automations/prompts/agents/planner.prompt.md` | After planner output, refresh run queue via `automations/prompts/orchestrations/run.prompt.md` step 1. |
 | ticket_execution | Execute single ticket | `automations/prompts/agents/implementer.prompt.md` | On completion, chain to `automations/prompts/agents/reviewer.prompt.md`, then `automations/prompts/agents/qa.prompt.md`, `automations/prompts/agents/ops-release.prompt.md`, and `automations/prompts/agents/knowledge-steward.prompt.md`. |
+| task_capture | Generate or update a structured task list for operators | `automations/prompts/agents/task-creation.prompt.md` | Once tasks are committed, loop back through `automations/prompts/orchestrations/command.prompt.md` with the desired execution intent (e.g., `ticket_plan` or `full_run`). |
 | postflight_only | Wrap up existing run | `automations/prompts/orchestrations/postflight.prompt.md` | If gaps detected, re-run `automations/prompts/orchestrations/run.prompt.md` for outstanding tickets. |
 | maintenance | Memory/doc clean-up | `automations/prompts/agents/knowledge-steward.prompt.md` | If structural fixes required, escalate through `automations/prompts/orchestrations/run.prompt.md` for targeted tickets. |
 
@@ -43,8 +45,7 @@ Respond with JSON so the controller can programmatically load the next file:
 - If additional data is required (e.g., missing ticket ID), return `intent: "clarify"` and include the clarification question in `notes` with `next_prompt` set to `null`.
 
 ## Execution Notes
-- Always confirm prerequisites before recommending `preflight.prompt.md` or `run.prompt.md` (e.g., memory manifest present, guardrails readable).
+- Always confirm prerequisites before recommending `preflight.prompt.md` or `run.prompt.md` (e.g., memory manifest present, guardrails readable). `follow_on` for `full_run` must include the entire sequence (`preflight`, `run`, `postflight`).
 - When routing to an agent prompt, include the ticket ID or relevant payload reference in `notes` so the agent has clear context.
 - Keep track of state updates: after any agent produces output, update `automations/run-state.json` and advise when to persist telemetry or memory changes.
 - Close the loop by signalling when the operator should re-run this command prompt (e.g., after postflight or if new goals arrive).
-
