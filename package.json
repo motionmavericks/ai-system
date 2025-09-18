@@ -3,9 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "automation:memory:check": "node automation/scripts/memory-validate.mjs",
-    "automation:memory:validate": "node automation/scripts/memory-validate.mjs --write",
-    "automation:memory:compact": "node automation/scripts/memory-compact.mjs",
-    "automation:telemetry:collect": "node automation/scripts/collect-telemetry.mjs"
+    "automation:memory:check": "node automations/scripts/memory-validate.mjs",
+    "automation:memory:validate": "node automations/scripts/memory-validate.mjs --write",
+    "automation:memory:compact": "node automations/scripts/memory-compact.mjs",
+    "automation:telemetry:collect": "node automations/scripts/collect-telemetry.mjs",
+    "automation:orchestration:smoke": "node automations/scripts/orchestration-smoke.mjs"
   }
 }

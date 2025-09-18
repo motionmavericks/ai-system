@@ -1,0 +1,62 @@
+{
+  "status": "pass",
+  "commands": [
+    {
+      "cmd": "pnpm lint",
+      "exit_code": 0,
+      "duration_seconds": 32.5
+    },
+    {
+      "cmd": "pnpm test:unit --filter=milestones",
+      "exit_code": 0,
+      "duration_seconds": 58.2
+    }
+  ],
+  "metrics": {
+    "smoke_latency_ms": {
+      "average": 190,
+      "min": 190,
+      "max": 190,
+      "samples": 1
+    },
+    "error_rate": {
+      "average": 0,
+      "min": 0,
+      "max": 0,
+      "samples": 1
+    },
+    "coverage_statements": {
+      "average": 0.84,
+      "min": 0.84,
+      "max": 0.84,
+      "samples": 1
+    },
+    "p95_latency_ms": {
+      "average": 240,
+      "min": 240,
+      "max": 240,
+      "samples": 1
+    }
+  },
+  "issues": [],
+  "artefacts": [
+    "trace.zip"
+  ],
+  "rewards": [
+    0.95,
+    0.91
+  ],
+  "sources": [
+    "/home/maverick/Projects/ai-system/automations/samples/telemetry/ops.json",
+    "/home/maverick/Projects/ai-system/automations/samples/telemetry/qa.json"
+  ],
+  "summary": "Aggregated 2 telemetry payload(s).",
+  "reward": {
+    "average": 0.9299999999999999,
+    "min": 0.91,
+    "max": 0.95,
+    "samples": 2
+  },
+  "generatedAt": "2025-09-17T23:50:07.922Z",
+  "runId": "RUN-TEST"
+}

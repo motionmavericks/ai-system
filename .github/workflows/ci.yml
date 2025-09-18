@@ -63,6 +63,20 @@ jobs:
       - name: Validate automation memory store
         run: pnpm automation:memory:check
 
+  automation-orchestration-smoke:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Validate orchestration prompts & docs
+        run: pnpm automation:orchestration:smoke
+
   automation-memory-artifacts:
     needs: [lint, typecheck]
     runs-on: ubuntu-latest
@@ -75,12 +89,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Aggregate sample telemetry
-        run: pnpm automation:telemetry:collect -- --input automation/samples/telemetry --run-id RUN-CI
+        run: pnpm automation:telemetry:collect -- --input automations/samples/telemetry --run-id RUN-CI
       - name: Upload telemetry summary
         uses: actions/upload-artifact@v4
         with:
           name: automation-telemetry
-          path: automation/memory/telemetry/RUN-CI
+          path: automations/memory/telemetry/RUN-CI
 
   integration-tests:
     needs: [lint, typecheck]
@@ -97,10 +111,9 @@ jobs:
         run: pnpm test:integration
 
   quality-gate:
-    needs: [automation-memory-validate, automation-memory-artifacts, integration-tests]
+    needs: [automation-memory-validate, automation-orchestration-smoke, automation-memory-artifacts, integration-tests]
     runs-on: ubuntu-latest
     steps:
       - name: Summary
         run: |
           echo "All required jobs completed."
-
