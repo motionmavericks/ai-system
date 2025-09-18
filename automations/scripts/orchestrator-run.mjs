@@ -1,306 +1,403 @@
 #!/usr/bin/env node
-import { readFile, writeFile, mkdir, access } from 'fs/promises';
-import { existsSync, constants } from 'fs';
-import { resolve, dirname, join } from 'path';
+import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { spawn } from 'child_process';
+import { createPromptController } from '../lib/prompt-controller.mjs';
+import { createStateManager, createMemoryManager } from '../lib/state-manager.mjs';
+import { createGuardEvaluator } from '../lib/guard-evaluator.mjs';
+import { createAgentExecutor } from '../lib/agent-executor.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '../..');
-const runQueuePath = resolve(repoRoot, 'automations/run-queue.json');
-const runStatePath = resolve(repoRoot, 'automations/run-state.json');
 
-async function readJson(path) {
-  const raw = await readFile(path, 'utf8');
-  return JSON.parse(raw);
-}
-
-async function writeJson(path, value) {
-  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-}
-
-function execCommand(command, args = []) {
-  return new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn(command, args, { stdio: 'inherit', cwd: repoRoot });
-    child.on('close', code => {
-      if (code !== 0) {
-        rejectPromise(new Error(`${command} ${args.join(' ')} exited with code ${code}`));
-      } else {
-        resolvePromise();
-      }
-    });
-  });
-}
-
-function pickRunId(runState) {
-  if (runState && runState.run_id) {
-    return runState.run_id;
-  }
-  const now = new Date();
-  const pad = value => value.toString().padStart(2, '0');
-  return `RUN-${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}-${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}`;
-}
-
-async function ensureRunState(runId) {
-  if (existsSync(runStatePath)) {
-    const state = await readJson(runStatePath);
-    if (state.run_id === runId) {
-      return state;
-    }
-  }
-
-  const args = ['npm', 'run', 'automation:run-state:init', '--', '--run-id', runId, '--force'];
-  await execCommand(args[0], args.slice(1));
-  return readJson(runStatePath);
-}
-
-async function ensureBootstrap(runId) {
-  const sessionDir = resolve(repoRoot, 'automations/memory/sessions', runId);
-  const heartbeatPath = join(sessionDir, 'heartbeat.json');
-  if (existsSync(heartbeatPath)) {
-    return heartbeatPath;
-  }
-  await execCommand('npm', ['run', 'automation:memory:bootstrap', '--', '--run-id', runId]);
-  return heartbeatPath;
-}
-
-function dependenciesMet(ticketId, runState, queueMap) {
-  const deps = queueMap.get(ticketId).dependencies ?? [];
-  return deps.every(dep => runState.tickets[dep]?.status === 'done');
-}
-
-function selectNextTicket(queue, runState, queueMap) {
-  for (const ticket of queue) {
-    const ticketState = runState.tickets[ticket.ticket_id];
-    if (!ticketState) continue;
-    if (ticketState.status === 'done' || ticketState.status === 'blocked') continue;
-    if (dependenciesMet(ticket.ticket_id, runState, queueMap)) {
-      return ticket.ticket_id;
-    }
-  }
-  return null;
-}
-
-async function appendHistory(state, ticketId, entry) {
-  const ticket = state.tickets[ticketId];
-  ticket.history.push(entry);
-  ticket.phase = entry.phase;
-  ticket.status = entry.status;
-  state.updatedAt = new Date().toISOString();
-  await writeJson(runStatePath, state);
-}
-
-async function writeArtefact(dir, filename, payload) {
-  await mkdir(dir, { recursive: true });
-  const path = join(dir, filename);
-  await writeJson(path, payload);
-}
-
-async function updateHeartbeat(runId, phase) {
-  const heartbeatPath = resolve(repoRoot, 'automations/memory/sessions', runId, 'heartbeat.json');
-  if (!existsSync(heartbeatPath)) {
-    return;
-  }
-  const heartbeat = await readJson(heartbeatPath).catch(() => null) ?? {};
-  heartbeat.status = 'running';
-  heartbeat.phase = phase;
-  heartbeat.updatedAt = new Date().toISOString();
-  await writeJson(heartbeatPath, heartbeat);
-}
-
-async function pathAccessible(relPath) {
-  try {
-    await access(resolve(repoRoot, relPath), constants.R_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const guardDir = resolve(repoRoot, 'automations/ticket-guards');
-
-const guardEvaluators = {
-  async pathExists(check) {
-    const ok = await pathAccessible(check.path);
-    if (ok) return { ok: true };
-    return {
-      ok: false,
-      reason: `Missing required path: ${check.path}`
-    };
-  },
-  async fileContainsAll(check) {
-    const abs = resolve(repoRoot, check.path);
-    if (!existsSync(abs)) {
-      return { ok: false, reason: `Missing required file: ${check.path}` };
-    }
-    const contents = await readFile(abs, 'utf8');
-    const missing = (check.needles ?? []).filter(needle => !contents.includes(needle));
-    if (missing.length) {
-      return { ok: false, reason: `${check.path} missing tokens: ${missing.join(', ')}` };
-    }
-    return { ok: true };
-  },
-  async packageScripts(check) {
-    const pkg = JSON.parse(await readFile(resolve(repoRoot, 'package.json'), 'utf8'));
-    const scripts = pkg.scripts ?? {};
-    const missing = (check.scripts ?? []).filter(script => !scripts[script]);
-    if (missing.length) {
-      return { ok: false, reason: `package.json missing scripts: ${missing.join(', ')}` };
-    }
-    return { ok: true };
-  }
-};
-
-async function loadTicketGuard(ticketId) {
-  const guardPath = resolve(guardDir, `${ticketId}.json`);
-  if (!existsSync(guardPath)) {
-    return null;
-  }
-  return readJson(guardPath);
-}
-
-async function evaluateTicket(ticketId) {
-  const guard = await loadTicketGuard(ticketId);
-  if (!guard) {
-    return {
-      status: 'blocked',
-      summary: `No guard definition found for ${ticketId}.` ,
-      recommended_actions: ['Update ticket planning to include automations/ticket-guards entry.']
-    };
-  }
-
-  const failures = [];
-  const actions = [];
-
-  for (const check of guard.checks ?? []) {
-    const evaluator = guardEvaluators[check.type];
-    if (!evaluator) {
-      failures.push(`Unknown guard check type: ${check.type}`);
-      if (check.fix) actions.push(check.fix);
-      continue;
-    }
-    const result = await evaluator(check);
-    if (!result.ok) {
-      failures.push(result.reason);
-      if (check.fix) actions.push(check.fix);
-    }
-  }
-
-  if (failures.length) {
-    return {
-      status: 'blocked',
-      summary: guard.summaryOnFailure ?? `Guard checks failed for ${ticketId}.`,
-      details: failures,
-      recommended_actions: actions
-    };
-  }
-
-  return {
-    status: 'done',
-    summary: guard.summaryOnSuccess ?? `Guard checks passed for ${ticketId}.`
-  };
-}
-
-async function markBlocked(runId, ticketId, state, summary) {
-  await updateHeartbeat(runId, `${ticketId}:blocked`);
-  await appendHistory(state, ticketId, {
-    phase: 'blocked',
-    status: 'blocked',
-    summary,
-    timestamp: new Date().toISOString()
-  });
-  state.tickets[ticketId].status = 'blocked';
-  state.tickets[ticketId].phase = 'blocked';
-  state.updatedAt = new Date().toISOString();
-  await writeJson(runStatePath, state);
-}
-
-async function processTicket(runId, ticketId, state) {
-  const result = await evaluateTicket(ticketId);
-  const phase = result.status === 'done' ? 'knowledge' : 'blocked';
-
-  await updateHeartbeat(runId, `${ticketId}:${phase}`);
-  await appendHistory(state, ticketId, {
-    phase,
-    status: result.status,
-    summary: result.summary,
-    details: result.details,
-    recommended_actions: result.recommended_actions,
-    timestamp: new Date().toISOString()
-  });
-
-  const telemetryDir = resolve(repoRoot, 'automations/memory/telemetry', runId);
-  await writeArtefact(telemetryDir, `${ticketId}-${phase}.json`, {
-    ticket_id: ticketId,
-    phase,
-    summary: result.summary,
-    status: result.status,
-    details: result.details,
-    recommended_actions: result.recommended_actions,
-    timestamp: new Date().toISOString()
-  });
-
-  const replayDir = resolve(repoRoot, 'automations/memory/replay', runId);
-  await writeArtefact(replayDir, `${ticketId}-${phase}.json`, {
-    ticket_id: ticketId,
-    agent: phase,
-    events: [{ type: 'log', detail: result.summary, timestamp: new Date().toISOString() }]
-  });
-
-  state.tickets[ticketId].status = result.status;
-  state.tickets[ticketId].phase = phase;
-  state.updatedAt = new Date().toISOString();
-  await writeJson(runStatePath, state);
-  await updateHeartbeat(runId, `${ticketId}:${result.status}`);
-
-  return result;
-}
+/**
+ * Prompt-Driven Orchestrator
+ *
+ * This script implements the full prompt-driven orchestration flow:
+ * - Loads and executes prompts via the prompt controller
+ * - Manages state and memory through helpers
+ * - Follows the preflight → run → agent → postflight sequence
+ * - Evaluates guards and manages the control loop
+ */
 
 async function main() {
-  const queue = await readJson(runQueuePath);
-  const queueMap = new Map(queue.map(ticket => [ticket.ticket_id, ticket]));
+  try {
+    // Initialize components
+    const promptController = createPromptController();
+    const stateManager = createStateManager();
+    const guardEvaluator = createGuardEvaluator();
 
-  const existingState = existsSync(runStatePath) ? await readJson(runStatePath) : null;
-  const runId = pickRunId(existingState);
-  const runState = await ensureRunState(runId);
-  await ensureBootstrap(runId);
-
-  const blocked = [];
-
-  while (true) {
-    const ticketId = selectNextTicket(queue, runState, queueMap);
-    if (!ticketId) {
-      break;
+    // Load initial state
+    const queue = await stateManager.loadQueue();
+    if (!queue || queue.length === 0) {
+      console.error('❌ No tickets in queue. Run planner first.');
+      process.exit(1);
     }
 
-    const result = await processTicket(runId, ticketId, runState);
-    if (result.status !== 'done') {
-      blocked.push(ticketId);
-      break;
+    // Generate or get run ID
+    const existingState = await stateManager.loadRunState();
+    const runId = stateManager.generateRunId(existingState);
+
+    // Initialize run state
+    const runState = await stateManager.initializeRunState(runId, false);
+
+    // Create memory manager
+    const memoryManager = createMemoryManager(runId);
+    await memoryManager.bootstrap();
+
+    // Create agent executor
+    const agentExecutor = createAgentExecutor({
+      promptController,
+      stateManager,
+      memoryManager,
+      guardEvaluator
+    });
+
+    // Build initial context
+    const initialContext = {
+      operator_intent: 'full_run',
+      run_id: runId,
+      run_state: runState,
+      queue: queue,
+      memory_paths: {
+        sessions: `automations/memory/sessions/${runId}`,
+        telemetry: `automations/memory/telemetry/${runId}`,
+        replay: `automations/memory/replay/${runId}`
+      }
+    };
+
+    // Execute command prompt to determine flow
+    console.log('🚀 Starting prompt-driven orchestration...');
+    const commandResult = await promptController.executePrompt(
+      'automations/prompts/orchestrations/command.prompt.md',
+      initialContext
+    );
+
+    console.log(`📋 Intent: ${commandResult.intent}`);
+
+    // Handle different intents
+    if (commandResult.intent === 'full_run') {
+      // Execute full orchestration flow
+      await executeFullRun(
+        promptController,
+        stateManager,
+        memoryManager,
+        guardEvaluator,
+        agentExecutor,
+        runId,
+        queue
+      );
+    } else if (commandResult.intent === 'ticket_plan') {
+      // Execute planner only
+      await agentExecutor.executePlanner(initialContext);
+      console.log('✅ Planning completed.');
+    } else if (commandResult.intent === 'ticket_execution') {
+      // Execute specific ticket
+      const ticketId = commandResult.ticket_id;
+      const ticket = queue.find(t => t.ticket_id === ticketId);
+
+      if (!ticket) {
+        console.error(`❌ Ticket ${ticketId} not found in queue.`);
+        process.exit(1);
+      }
+
+      await executeTicket(
+        ticket,
+        stateManager,
+        memoryManager,
+        guardEvaluator,
+        agentExecutor,
+        runId
+      );
+    } else {
+      console.error(`❌ Unknown intent: ${commandResult.intent}`);
+      process.exit(1);
     }
+
+    console.log('✅ Orchestration completed successfully.');
+
+  } catch (error) {
+    console.error('❌ Orchestration failed:', error.message);
+    console.error(error.stack);
+    process.exit(1);
   }
+}
 
-  const unfinished = queue
-    .map(ticket => ticket.ticket_id)
-    .filter(id => !['done', 'blocked'].includes(runState.tickets[id]?.status));
+/**
+ * Execute full orchestration run
+ */
+async function executeFullRun(
+  promptController,
+  stateManager,
+  memoryManager,
+  guardEvaluator,
+  agentExecutor,
+  runId,
+  queue
+) {
+  // Execute preflight first
+  console.log('🔍 Running preflight checks...');
+  const preflightResult = await promptController.executePrompt(
+    'automations/prompts/orchestrations/preflight.prompt.md',
+    {
+      run_id: runId,
+      queue
+    }
+  );
 
-  for (const ticketId of unfinished) {
-    await markBlocked(runId, ticketId, runState, 'Blocked because dependencies failed acceptance checks.');
-    blocked.push(ticketId);
-  }
+  await applyPromptUpdates({
+    result: preflightResult,
+    stateManager,
+    memoryManager
+  });
 
-  await updateHeartbeat(runId, blocked.length ? 'blocked' : 'postflight');
-
-  if (blocked.length) {
-    console.error(`❌ Queue halted. Blocked tickets: ${blocked.join(', ')}.`);
-    console.error('Refer to automations/run-state.json for detailed guard failures.');
+  if (preflightResult.status !== 'ready') {
+    console.error('❌ Preflight checks failed:', preflightResult.summary);
+    if (preflightResult.blockers) {
+      console.error('Blockers:', preflightResult.blockers);
+    }
     process.exit(1);
   }
 
-  console.log('✅ All tickets passed automated checks.');
+  console.log('✅ Preflight checks passed.');
+
+  const runPromptPath = 'automations/prompts/orchestrations/run.prompt.md';
+  const postflightPromptPath = 'automations/prompts/orchestrations/postflight.prompt.md';
+
+  let context = {
+    run_id: runId,
+    queue,
+    run_state: await stateManager.loadRunState(),
+    guard_evaluations: {},
+    operator_intent: 'full_run',
+    memory_paths: {
+      sessions: `automations/memory/sessions/${runId}`,
+      telemetry: `automations/memory/telemetry/${runId}`,
+      replay: `automations/memory/replay/${runId}`
+    }
+  };
+
+  let currentPrompt = runPromptPath;
+  let followOnQueue = [];
+  let activeTicket = null;
+  let blockedTickets = new Set();
+  let processedCount = 0;
+
+  console.log('🔄 Entering prompt-driven execution loop...');
+
+  while (currentPrompt) {
+    context.run_state = await stateManager.loadRunState();
+    if (currentPrompt === runPromptPath) {
+      const runResult = await promptController.executePrompt(runPromptPath, context);
+      await applyPromptUpdates({ result: runResult, stateManager, memoryManager });
+
+      if (runResult.phase === 'blocked' && runResult.ticket_id) {
+        blockedTickets.add(runResult.ticket_id);
+      }
+
+      if (runResult.phase === 'done' && runResult.ticket_id) {
+        processedCount += 1;
+      }
+
+      if (!runResult.next_prompt) {
+        break;
+      }
+
+      if (runResult.next_prompt === postflightPromptPath) {
+        currentPrompt = postflightPromptPath;
+        continue;
+      }
+
+      if (runResult.next_prompt.includes('/agents/')) {
+        const ticketId = runResult.ticket_id;
+        activeTicket = queue.find(t => t.ticket_id === ticketId);
+
+        if (!activeTicket) {
+          throw new Error(`Run prompt referenced unknown ticket: ${ticketId}`);
+        }
+
+        const guardResult = await guardEvaluator.evaluateTicket(ticketId);
+        context.guard_evaluations = {
+          ...(context.guard_evaluations || {}),
+          [ticketId]: guardResult
+        };
+        if (guardResult && !guardResult.passed) {
+          console.log(`❌ Guard checks failed for ${ticketId}. Marking blocked.`);
+          await stateManager.updateTicketStatus(ticketId, 'blocked', 'blocked', {
+            summary: guardResult.summary,
+            failures: guardResult.failures,
+            recommended_actions: guardResult.recommended_actions
+          });
+          context.run_state = await stateManager.loadRunState();
+          blockedTickets.add(ticketId);
+          currentPrompt = followOnQueue.shift() || runPromptPath;
+          continue;
+        }
+
+        followOnQueue = Array.isArray(runResult.follow_on) ? [...runResult.follow_on] : [];
+        context.current_ticket = activeTicket;
+        context.current_phase = runResult.phase;
+        currentPrompt = runResult.next_prompt;
+        continue;
+      }
+
+      // If run prompt directed to another orchestration prompt
+      currentPrompt = runResult.next_prompt;
+      continue;
+    }
+
+    if (currentPrompt.includes('/agents/')) {
+      if (!activeTicket) {
+        throw new Error('Agent prompt requested without an active ticket context');
+      }
+
+      const agentName = currentPrompt
+        .split('/')
+        .pop()
+        .replace('.prompt.md', '');
+
+      const agentResult = await agentExecutor.executeAgent(agentName, activeTicket, context);
+      await applyPromptUpdates({ result: agentResult, stateManager, memoryManager });
+
+      context.previous_agent_output = agentResult;
+
+      // Determine next prompt in chain
+      currentPrompt = followOnQueue.shift() || runPromptPath;
+
+      if (!currentPrompt.includes('/agents/') && currentPrompt === runPromptPath) {
+        activeTicket = null;
+      }
+
+      continue;
+    }
+
+    if (currentPrompt === postflightPromptPath) {
+      const finalState = await stateManager.loadRunState();
+      const postflightResult = await promptController.executePrompt(postflightPromptPath, {
+        run_id: runId,
+        tickets_processed: processedCount,
+        blocked_tickets: Array.from(blockedTickets),
+        final_state: finalState
+      });
+
+      await memoryManager.updateHeartbeat(blockedTickets.size ? 'blocked' : 'postflight');
+      await applyPromptUpdates({ result: postflightResult, stateManager, memoryManager });
+
+      if (blockedTickets.size > 0) {
+        console.error(`\n❌ Queue halted. Blocked tickets: ${Array.from(blockedTickets).join(', ')}`);
+        console.error('Refer to automations/run-state.json for detailed guard failures.');
+        process.exit(1);
+      }
+
+      console.log(`\n✅ Postflight completed: ${postflightResult.summary}`);
+      break;
+    }
+
+    // Unknown prompt type
+    console.warn(`⚠️  Unrecognized prompt flow: ${currentPrompt}. Stopping.`);
+    break;
+  }
+
+    // Refresh run-state context for next iteration
+    context.run_state = await stateManager.loadRunState();
+  }
+
+  console.log(`\n✅ Prompt-driven run completed. Tickets processed: ${processedCount}`);
 }
 
+/**
+ * Execute a single ticket
+ */
+async function executeTicket(
+  ticket,
+  stateManager,
+  memoryManager,
+  guardEvaluator,
+  agentExecutor,
+  runId
+) {
+  try {
+    // Build context for ticket execution
+    const context = {
+      run_id: runId,
+      ticket: ticket,
+      memory_paths: {
+        sessions: `automations/memory/sessions/${runId}`,
+        telemetry: `automations/memory/telemetry/${runId}`,
+        replay: `automations/memory/replay/${runId}`
+      }
+    };
+
+    // Execute through agent chain
+    const result = await agentExecutor.executeTicketChain(ticket, context);
+
+    if (result.success) {
+      console.log(`✅ Ticket ${ticket.ticket_id} completed successfully.`);
+    } else {
+      console.log(`❌ Ticket ${ticket.ticket_id} failed at phase: ${result.phase}`);
+      console.log(`   Reason: ${result.reason}`);
+    }
+
+    return result;
+
+  } catch (error) {
+    console.error(`❌ Error executing ticket ${ticket.ticket_id}:`, error);
+
+    await stateManager.updateTicketStatus(
+      ticket.ticket_id,
+      'error',
+      'blocked',
+      {
+        summary: 'Execution error',
+        error: error.message
+      }
+    );
+
+    return {
+      success: false,
+      phase: 'error',
+      reason: error.message
+    };
+  }
+}
+
+/**
+ * Apply updates returned from a prompt response
+ */
+async function applyPromptUpdates({ result, stateManager, memoryManager }) {
+  if (!result || !result.updates) {
+    return;
+  }
+
+  const { updates } = result;
+
+  if (updates.run_state) {
+    await stateManager.applyRunStateDelta(updates.run_state);
+  }
+
+  if (memoryManager && updates.memory && Array.isArray(updates.memory)) {
+    for (const entry of updates.memory) {
+      if (typeof entry === 'string') {
+        await memoryManager.updateSession({ note: entry });
+      } else if (entry && typeof entry === 'object') {
+        await memoryManager.updateSession(entry);
+      }
+    }
+  }
+
+  if (memoryManager && updates.telemetry && Array.isArray(updates.telemetry)) {
+    for (const item of updates.telemetry) {
+      if (item && typeof item === 'object') {
+        const { ticket_id, phase, data } = item;
+        if (ticket_id && phase) {
+          await memoryManager.writeTelemetry(ticket_id, phase, data || {});
+        }
+      }
+    }
+  }
+}
+
+// Run the orchestrator
 main().catch(err => {
-  console.error(err.message ?? err);
+  console.error('Fatal error:', err);
   process.exit(1);
 });
