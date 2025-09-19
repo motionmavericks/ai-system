@@ -41,9 +41,12 @@ export class StateManager {
 
   /**
    * Load current run state
-   * @returns {Promise<Object>} Run state
+   * @returns {Promise<Object|null>} Run state or null if missing
    */
   async loadRunState() {
+    if (!existsSync(this.runStatePath)) {
+      return null;
+    }
     return this.readJson(this.runStatePath);
   }
 
@@ -72,10 +75,13 @@ export class StateManager {
       tickets: {}
     };
 
-    // Merge ticket updates
-    if (delta.tickets) {
-      state.tickets = state.tickets || {};
+    // Ensure tickets object exists before operations
+    if (!state.tickets) {
+      state.tickets = {};
+    }
 
+    // Merge ticket updates safely
+    if (delta.tickets) {
       for (const [ticketId, ticketDelta] of Object.entries(delta.tickets)) {
         const existing = state.tickets[ticketId] || {
           status: 'pending',
@@ -86,12 +92,12 @@ export class StateManager {
 
         const merged = { ...existing, ...ticketDelta };
 
-        // Merge history entries
+        // Safe history merge
         if (ticketDelta.history && Array.isArray(ticketDelta.history)) {
           merged.history = [...(existing.history || []), ...ticketDelta.history];
         }
 
-        // Merge artefacts
+        // Safe artefacts merge
         if (ticketDelta.artefacts) {
           merged.artefacts = {
             ...(existing.artefacts || {}),
@@ -103,6 +109,7 @@ export class StateManager {
       }
     }
 
+    // Apply remaining delta properties
     const remainingKeys = Object.keys(delta).filter(key => key !== 'tickets');
     for (const key of remainingKeys) {
       state[key] = delta[key];
@@ -144,12 +151,19 @@ export class StateManager {
   async initializeRunState(runId, force = false) {
     const existingState = await this.loadRunState();
 
+    // Only reinitialize if truly needed
     if (existingState && existingState.run_id === runId && !force) {
+      console.log(`ℹ️  Using existing state for run ${runId}`);
       return existingState;
     }
 
-    // Execute the init script
-    await this.execCommand('npm', ['run', 'automation:run-state:init', '--', '--run-id', runId, '--force']);
+    // Only use --force flag when explicitly needed
+    const args = ['run', 'automation:run-state:init', '--', '--run-id', runId];
+    if (force) {
+      args.push('--force');
+    }
+
+    await this.execCommand('npm', args);
     return this.loadRunState();
   }
 
@@ -161,7 +175,15 @@ export class StateManager {
    * @param {Object} metadata - Additional metadata
    */
   async updateTicketStatus(ticketId, phase, status, metadata = {}) {
-    const state = await this.loadRunState();
+    let state = await this.loadRunState();
+
+    if (!state) {
+      state = {
+        run_id: this.generateRunId(),
+        createdAt: new Date().toISOString(),
+        tickets: {}
+      };
+    }
 
     if (!state.tickets) {
       state.tickets = {};
@@ -411,37 +433,304 @@ export class MemoryManager {
   async queryMemory(filters = {}) {
     const index = await this.readMemoryIndex();
 
-    // Simple filtering implementation
+    // Enhanced semantic query implementation
     const results = {
       facts: {},
-      related: []
+      related: [],
+      embeddings: [],
+      relevanceScores: {}
     };
 
-    if (filters.ticket_id) {
-      // Find facts related to ticket
-      for (const [key, value] of Object.entries(index.facts)) {
-        if (key.includes(filters.ticket_id) ||
-            (value && typeof value === 'object' && value.ticket_id === filters.ticket_id)) {
-          results.facts[key] = value;
+    // If semantic query is provided, use semantic search
+    if (filters.query) {
+      const semanticResults = await this.semanticSearch(filters.query, index, filters.topK || 5);
+      results.facts = semanticResults.facts;
+      results.related = semanticResults.related;
+      results.embeddings = semanticResults.embeddings;
+      results.relevanceScores = semanticResults.scores;
+    } else {
+      // Standard filtering
+      if (filters.ticket_id) {
+        // Find facts related to ticket
+        for (const [key, value] of Object.entries(index.facts || {})) {
+          if (key.includes(filters.ticket_id) ||
+              (value && typeof value === 'object' && value.ticket_id === filters.ticket_id)) {
+            results.facts[key] = value;
+          }
+        }
+      }
+
+      if (filters.phase) {
+        // Find telemetry for phase
+        const telemetryFiles = existsSync(this.telemetryDir)
+          ? await readdir(this.telemetryDir)
+          : [];
+
+        for (const file of telemetryFiles) {
+          if (file.includes(filters.phase)) {
+            const content = await readFile(join(this.telemetryDir, file), 'utf8');
+            results.related.push(JSON.parse(content));
+          }
         }
       }
     }
 
-    if (filters.phase) {
-      // Find telemetry for phase
-      const telemetryFiles = existsSync(this.telemetryDir)
-        ? await readdir(this.telemetryDir)
-        : [];
+    // Deep object search if specified
+    if (filters.deepSearch && filters.searchPath) {
+      const deepResults = this.deepSearch(index, filters.searchPath, filters.searchValue);
+      results.deepSearchResults = deepResults;
+    }
 
-      for (const file of telemetryFiles) {
-        if (file.includes(filters.phase)) {
-          const content = await readFile(join(this.telemetryDir, file), 'utf8');
-          results.related.push(JSON.parse(content));
-        }
-      }
+    // Aggregate telemetry if requested
+    if (filters.aggregateTelemetry) {
+      results.telemetryAggregation = await this.aggregateTelemetry(filters);
     }
 
     return results;
+  }
+
+  /**
+   * Perform semantic search using embeddings or keyword scoring
+   * @param {string} query - Search query
+   * @param {Object} index - Memory index
+   * @param {number} topK - Number of results to return
+   * @returns {Promise<Object>} Search results
+   */
+  async semanticSearch(query, index, topK = 5) {
+    // Since we don't have external embeddings API, use keyword scoring
+    const results = {
+      facts: {},
+      related: [],
+      embeddings: [],
+      scores: {}
+    };
+
+    // Generate embedding stub for query
+    const queryEmbedding = this.generateStubEmbedding(query);
+
+    // Score all facts
+    const scoredFacts = [];
+    for (const [key, value] of Object.entries(index.facts || {})) {
+      const factText = JSON.stringify(value);
+      const score = this.calculateRelevance(query, factText, queryEmbedding);
+      scoredFacts.push({ key, value, score });
+    }
+
+    // Sort by score and take top K
+    scoredFacts.sort((a, b) => b.score - a.score);
+    const topFacts = scoredFacts.slice(0, topK);
+
+    for (const fact of topFacts) {
+      results.facts[fact.key] = fact.value;
+      results.scores[fact.key] = fact.score;
+    }
+
+    // Search in telemetry files
+    if (existsSync(this.telemetryDir)) {
+      const telemetryFiles = await readdir(this.telemetryDir);
+      const scoredTelemetry = [];
+
+      for (const file of telemetryFiles) {
+        const content = await readFile(join(this.telemetryDir, file), 'utf8');
+        const data = JSON.parse(content);
+        const score = this.calculateRelevance(query, content, queryEmbedding);
+        scoredTelemetry.push({ data, score });
+      }
+
+      scoredTelemetry.sort((a, b) => b.score - a.score);
+      results.related = scoredTelemetry.slice(0, topK).map(item => item.data);
+    }
+
+    // Store query embedding for caching
+    results.embeddings.push({
+      query,
+      embedding: queryEmbedding,
+      timestamp: new Date().toISOString()
+    });
+
+    return results;
+  }
+
+  /**
+   * Generate stub embedding for text (deterministic)
+   * @param {string} text - Text to embed
+   * @returns {Array<number>} Stub embedding vector
+   */
+  generateStubEmbedding(text) {
+    // Simple deterministic embedding based on character codes
+    // In production, this would use actual embedding model
+    const vector = new Array(128).fill(0);
+    const words = text.toLowerCase().split(/\s+/);
+
+    for (let i = 0; i < words.length && i < vector.length; i++) {
+      const word = words[i];
+      for (let j = 0; j < word.length; j++) {
+        vector[i] += word.charCodeAt(j) / 1000;
+      }
+      vector[i] = Math.tanh(vector[i]); // Normalize to [-1, 1]
+    }
+
+    return vector;
+  }
+
+  /**
+   * Calculate cosine similarity between vectors
+   * @param {Array<number>} vec1 - First vector
+   * @param {Array<number>} vec2 - Second vector
+   * @returns {number} Cosine similarity
+   */
+  cosineSimilarity(vec1, vec2) {
+    if (vec1.length !== vec2.length) {
+      throw new Error('Vectors must have same length');
+    }
+
+    let dotProduct = 0;
+    let norm1 = 0;
+    let norm2 = 0;
+
+    for (let i = 0; i < vec1.length; i++) {
+      dotProduct += vec1[i] * vec2[i];
+      norm1 += vec1[i] * vec1[i];
+      norm2 += vec2[i] * vec2[i];
+    }
+
+    if (norm1 === 0 || norm2 === 0) {
+      return 0;
+    }
+
+    return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
+  }
+
+  /**
+   * Calculate relevance score between query and text
+   * @param {string} query - Search query
+   * @param {string} text - Text to score
+   * @param {Array<number>} queryEmbedding - Query embedding
+   * @returns {number} Relevance score
+   */
+  calculateRelevance(query, text, queryEmbedding) {
+    // Combine keyword matching with embedding similarity
+    const queryWords = query.toLowerCase().split(/\s+/);
+    const textLower = text.toLowerCase();
+
+    // Keyword score
+    let keywordScore = 0;
+    for (const word of queryWords) {
+      if (textLower.includes(word)) {
+        keywordScore += 1;
+      }
+    }
+    keywordScore = keywordScore / queryWords.length;
+
+    // Embedding similarity
+    const textEmbedding = this.generateStubEmbedding(text);
+    const embeddingScore = this.cosineSimilarity(queryEmbedding, textEmbedding);
+
+    // Weighted combination
+    return (keywordScore * 0.6) + (embeddingScore * 0.4);
+  }
+
+  /**
+   * Deep search in nested objects
+   * @param {Object} obj - Object to search
+   * @param {string} path - Path to search (e.g., 'tickets.*.status')
+   * @param {*} value - Value to match
+   * @returns {Array} Matching results
+   */
+  deepSearch(obj, path, value) {
+    const results = [];
+    const pathParts = path.split('.');
+
+    function search(current, parts, currentPath = []) {
+      if (parts.length === 0) {
+        if (value === undefined || current === value) {
+          results.push({
+            path: currentPath.join('.'),
+            value: current
+          });
+        }
+        return;
+      }
+
+      const [part, ...remaining] = parts;
+
+      if (part === '*') {
+        // Wildcard - search all properties
+        if (typeof current === 'object' && current !== null) {
+          for (const [key, val] of Object.entries(current)) {
+            search(val, remaining, [...currentPath, key]);
+          }
+        }
+      } else if (current && typeof current === 'object' && part in current) {
+        search(current[part], remaining, [...currentPath, part]);
+      }
+    }
+
+    search(obj, pathParts);
+    return results;
+  }
+
+  /**
+   * Aggregate telemetry data
+   * @param {Object} filters - Aggregation filters
+   * @returns {Promise<Object>} Aggregated telemetry
+   */
+  async aggregateTelemetry(filters) {
+    const aggregation = {
+      byPhase: {},
+      byTicket: {},
+      timeline: [],
+      summary: {
+        totalEvents: 0,
+        uniqueTickets: new Set(),
+        phases: new Set()
+      }
+    };
+
+    if (!existsSync(this.telemetryDir)) {
+      return aggregation;
+    }
+
+    const files = await readdir(this.telemetryDir);
+
+    for (const file of files) {
+      const content = await readFile(join(this.telemetryDir, file), 'utf8');
+      const data = JSON.parse(content);
+
+      // Update aggregations
+      const phase = data.phase || 'unknown';
+      const ticketId = data.ticket_id || 'unknown';
+
+      if (!aggregation.byPhase[phase]) {
+        aggregation.byPhase[phase] = [];
+      }
+      aggregation.byPhase[phase].push(data);
+
+      if (!aggregation.byTicket[ticketId]) {
+        aggregation.byTicket[ticketId] = [];
+      }
+      aggregation.byTicket[ticketId].push(data);
+
+      aggregation.timeline.push({
+        timestamp: data.timestamp,
+        phase,
+        ticketId,
+        summary: data.summary
+      });
+
+      aggregation.summary.totalEvents++;
+      aggregation.summary.uniqueTickets.add(ticketId);
+      aggregation.summary.phases.add(phase);
+    }
+
+    // Convert sets to arrays
+    aggregation.summary.uniqueTickets = Array.from(aggregation.summary.uniqueTickets);
+    aggregation.summary.phases = Array.from(aggregation.summary.phases);
+
+    // Sort timeline
+    aggregation.timeline.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    return aggregation;
   }
 
   /**

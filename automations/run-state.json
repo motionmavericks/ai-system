@@ -1,0 +1,134 @@
+{
+  "run_id": "TEST-REWIND-1758268019986",
+  "createdAt": "2025-09-19T07:47:00.047Z",
+  "updatedAt": "2025-09-19T07:47:00.056Z",
+  "heartbeat": "automations/memory/sessions/TEST-REWIND-1758268019986/heartbeat.json",
+  "tickets": {
+    "F-001": {
+      "status": "pending",
+      "phase": "planner",
+      "dependencies": [],
+      "artefacts": {},
+      "history": []
+    },
+    "F-002": {
+      "status": "pending",
+      "phase": "planner",
+      "dependencies": [
+        "F-001"
+      ],
+      "artefacts": {},
+      "history": []
+    },
+    "F-003": {
+      "status": "pending",
+      "phase": "planner",
+      "dependencies": [
+        "F-001"
+      ],
+      "artefacts": {},
+      "history": []
+    },
+    "F-004": {
+      "status": "pending",
+      "phase": "planner",
+      "dependencies": [
+        "F-002"
+      ],
+      "artefacts": {},
+      "history": []
+    },
+    "F-005": {
+      "status": "pending",
+      "phase": "planner",
+      "dependencies": [
+        "F-004"
+      ],
+      "artefacts": {},
+      "history": []
+    },
+    "F-006": {
+      "status": "pending",
+      "phase": "planner",
+      "dependencies": [
+        "F-001"
+      ],
+      "artefacts": {},
+      "history": []
+    },
+    "TEST-001": {
+      "status": "done",
+      "phase": "knowledge",
+      "history": [
+        {
+          "phase": "implementer",
+          "status": "in_progress",
+          "timestamp": "2025-09-19T07:47:00.053Z",
+          "agent": "implementer"
+        },
+        {
+          "phase": "reviewer",
+          "status": "in_progress",
+          "timestamp": "2025-09-19T07:47:00.054Z",
+          "agent": "reviewer"
+        },
+        {
+          "phase": "implementer",
+          "status": "in_progress",
+          "timestamp": "2025-09-19T07:47:00.054Z",
+          "agent": "implementer"
+        },
+        {
+          "phase": "reviewer",
+          "status": "in_progress",
+          "timestamp": "2025-09-19T07:47:00.054Z",
+          "agent": "reviewer"
+        },
+        {
+          "phase": "qa",
+          "status": "in_progress",
+          "timestamp": "2025-09-19T07:47:00.054Z",
+          "agent": "qa"
+        },
+        {
+          "phase": "implementer",
+          "status": "in_progress",
+          "timestamp": "2025-09-19T07:47:00.054Z",
+          "agent": "implementer"
+        },
+        {
+          "phase": "reviewer",
+          "status": "in_progress",
+          "timestamp": "2025-09-19T07:47:00.055Z",
+          "agent": "reviewer"
+        },
+        {
+          "phase": "qa",
+          "status": "in_progress",
+          "timestamp": "2025-09-19T07:47:00.055Z",
+          "agent": "qa"
+        },
+        {
+          "phase": "ops-release",
+          "status": "in_progress",
+          "timestamp": "2025-09-19T07:47:00.055Z",
+          "agent": "ops-release"
+        },
+        {
+          "phase": "knowledge-steward",
+          "status": "in_progress",
+          "timestamp": "2025-09-19T07:47:00.055Z",
+          "agent": "knowledge-steward"
+        },
+        {
+          "phase": "knowledge",
+          "status": "done",
+          "timestamp": "2025-09-19T07:47:00.056Z",
+          "summary": "Ticket completed successfully",
+          "completed_at": "2025-09-19T07:47:00.055Z"
+        }
+      ],
+      "artefacts": {}
+    }
+  }
+}

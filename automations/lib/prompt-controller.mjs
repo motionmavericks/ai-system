@@ -3,6 +3,7 @@ import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { createLLMProvider } from './llm-provider.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '../..');
@@ -292,6 +293,11 @@ export class StubbedLLMInterface {
  * @returns {PromptController} Controller instance
  */
 export function createPromptController(llmInterface = null) {
-  const llm = llmInterface || new StubbedLLMInterface();
+  // Use the new LLM provider abstraction if no interface provided
+  const llm = llmInterface || createLLMProvider({
+    debug: process.env.LLM_DEBUG === 'true',
+    retryAttempts: parseInt(process.env.LLM_RETRY_ATTEMPTS || '3'),
+    retryDelay: parseInt(process.env.LLM_RETRY_DELAY || '1000')
+  });
   return new PromptController(llm);
 }

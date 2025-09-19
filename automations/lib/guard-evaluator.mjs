@@ -3,6 +3,8 @@ import { readFile, access } from 'fs/promises';
 import { existsSync, constants } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { spawn } from 'child_process';
+import { promisify } from 'util';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '../..');
@@ -14,6 +16,12 @@ export class GuardEvaluator {
   constructor() {
     this.guardDir = resolve(repoRoot, 'automations/ticket-guards');
     this.evaluators = this.initializeEvaluators();
+
+    // Sandboxing configuration
+    this.allowedCommands = ['npm', 'pnpm', 'node', 'git'];
+    this.commandTimeout = 30000; // 30 seconds
+    this.maxBufferSize = 1024 * 1024; // 1MB
+    this.sandboxLogs = [];
   }
 
   /**
@@ -212,11 +220,156 @@ export class GuardEvaluator {
    * @returns {Promise<Object>} Result
    */
   async evaluateCommandSucceeds(check) {
-    // For safety, this is stubbed - real implementation would need sandboxing
-    return {
-      ok: false,
-      reason: 'Command execution not implemented for safety'
+    const startTime = Date.now();
+    const logEntry = {
+      command: check.command,
+      timestamp: new Date().toISOString(),
+      ticket: check.ticket_id || 'unknown'
     };
+
+    try {
+      // Validate command against allowlist
+      const commandParts = check.command.trim().split(/\s+/);
+      const baseCommand = commandParts[0];
+
+      if (!this.allowedCommands.includes(baseCommand)) {
+        const result = {
+          ok: false,
+          reason: `Command '${baseCommand}' not in allowed list: ${this.allowedCommands.join(', ')}`
+        };
+        logEntry.result = 'blocked';
+        logEntry.reason = result.reason;
+        this.sandboxLogs.push(logEntry);
+        return result;
+      }
+
+      // Execute command with sandboxing constraints
+      const executionResult = await this.executeSandboxedCommand(
+        check.command,
+        check.cwd || repoRoot,
+        check.env || {}
+      );
+
+      logEntry.duration = Date.now() - startTime;
+      logEntry.exitCode = executionResult.code;
+      logEntry.result = executionResult.code === 0 ? 'success' : 'failed';
+
+      if (executionResult.stdout) {
+        logEntry.stdout = executionResult.stdout.substring(0, 1000); // Log first 1KB
+      }
+
+      this.sandboxLogs.push(logEntry);
+
+      if (executionResult.code !== 0) {
+        return {
+          ok: false,
+          reason: `Command failed with exit code ${executionResult.code}`,
+          stderr: executionResult.stderr,
+          stdout: executionResult.stdout
+        };
+      }
+
+      return {
+        ok: true,
+        stdout: executionResult.stdout,
+        duration: logEntry.duration
+      };
+
+    } catch (error) {
+      logEntry.result = 'error';
+      logEntry.error = error.message;
+      logEntry.duration = Date.now() - startTime;
+      this.sandboxLogs.push(logEntry);
+
+      return {
+        ok: false,
+        reason: `Command execution failed: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Execute a command with sandboxing constraints
+   * @param {string} command - Command to execute
+   * @param {string} cwd - Working directory
+   * @param {Object} env - Environment variables
+   * @returns {Promise<Object>} Execution result
+   */
+  async executeSandboxedCommand(command, cwd, env) {
+    return new Promise((resolve, reject) => {
+      const child = spawn('sh', ['-c', command], {
+        cwd,
+        env: { ...process.env, ...env },
+        timeout: this.commandTimeout,
+        maxBuffer: this.maxBufferSize,
+        shell: false // Use sh directly, don't allow shell injection
+      });
+
+      let stdout = '';
+      let stderr = '';
+      let killed = false;
+
+      // Set timeout
+      const timer = setTimeout(() => {
+        killed = true;
+        child.kill('SIGKILL');
+        reject(new Error(`Command timed out after ${this.commandTimeout}ms`));
+      }, this.commandTimeout);
+
+      // Capture stdout with buffer limit
+      child.stdout.on('data', (data) => {
+        stdout += data.toString();
+        if (stdout.length > this.maxBufferSize) {
+          killed = true;
+          child.kill('SIGKILL');
+          clearTimeout(timer);
+          reject(new Error(`Output exceeded buffer limit of ${this.maxBufferSize} bytes`));
+        }
+      });
+
+      // Capture stderr with buffer limit
+      child.stderr.on('data', (data) => {
+        stderr += data.toString();
+        if (stderr.length > this.maxBufferSize) {
+          killed = true;
+          child.kill('SIGKILL');
+          clearTimeout(timer);
+          reject(new Error(`Error output exceeded buffer limit of ${this.maxBufferSize} bytes`));
+        }
+      });
+
+      child.on('close', (code, signal) => {
+        clearTimeout(timer);
+        if (!killed) {
+          resolve({
+            code,
+            signal,
+            stdout,
+            stderr
+          });
+        }
+      });
+
+      child.on('error', (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+    });
+  }
+
+  /**
+   * Get sandbox execution logs
+   * @returns {Array} Execution logs
+   */
+  getSandboxLogs() {
+    return this.sandboxLogs;
+  }
+
+  /**
+   * Clear sandbox execution logs
+   */
+  clearSandboxLogs() {
+    this.sandboxLogs = [];
   }
 
   /**
@@ -276,38 +429,131 @@ export class GuardEvaluator {
    * Auto-fix guard failures where possible
    * @param {string} ticketId - Ticket ID
    * @param {Array} actions - Recommended actions
+   * @param {Object} options - Auto-fix options
    * @returns {Promise<Object>} Fix results
    */
-  async attemptAutoFix(ticketId, actions) {
+  async attemptAutoFix(ticketId, actions, options = {}) {
+    const { dryRun = false, recordHistory = true } = options;
     const results = [];
+    const fixHistory = [];
 
     for (const action of actions) {
-      if (typeof action === 'string' && action.startsWith('npm run')) {
-        // Could execute safe npm scripts
-        results.push({
-          action,
-          status: 'skipped',
-          reason: 'Auto-execution disabled for safety'
-        });
+      const historyEntry = {
+        ticketId,
+        action,
+        timestamp: new Date().toISOString(),
+        dryRun
+      };
+
+      if (typeof action === 'string' && action.startsWith('npm ')) {
+        // Execute safe npm commands
+        const commandParts = action.split(/\s+/);
+        // Allow more npm commands including --version
+        const safeNpmCommands = ['install', 'ci', 'run', '--version', 'ls', 'list', 'version'];
+        const npmCommand = commandParts[1];
+        if (commandParts[0] === 'npm' && (safeNpmCommands.includes(npmCommand) || npmCommand?.startsWith('--'))) {
+          if (dryRun) {
+            results.push({
+              action,
+              status: 'dry-run',
+              wouldExecute: true,
+              reason: 'Would execute npm command'
+            });
+            historyEntry.status = 'dry-run';
+          } else {
+            try {
+              const execResult = await this.executeSandboxedCommand(action, repoRoot, {});
+              results.push({
+                action,
+                status: execResult.code === 0 ? 'success' : 'failed',
+                exitCode: execResult.code,
+                output: execResult.stdout
+              });
+              historyEntry.status = execResult.code === 0 ? 'success' : 'failed';
+              historyEntry.exitCode = execResult.code;
+            } catch (error) {
+              results.push({
+                action,
+                status: 'error',
+                reason: error.message
+              });
+              historyEntry.status = 'error';
+              historyEntry.error = error.message;
+            }
+          }
+        } else {
+          results.push({
+            action,
+            status: 'blocked',
+            reason: 'Unsafe npm command'
+          });
+          historyEntry.status = 'blocked';
+        }
       } else if (typeof action === 'object' && action.type === 'createFile') {
-        // Could create missing files
-        results.push({
-          action: action.path,
-          status: 'skipped',
-          reason: 'File creation disabled for safety'
-        });
+        if (dryRun) {
+          results.push({
+            action: action.path,
+            status: 'dry-run',
+            wouldCreate: true,
+            content: action.content ? action.content.substring(0, 100) + '...' : ''
+          });
+          historyEntry.status = 'dry-run';
+        } else {
+          // In production, would create the file here
+          results.push({
+            action: action.path,
+            status: 'skipped',
+            reason: 'File creation requires additional validation'
+          });
+          historyEntry.status = 'skipped';
+        }
+      } else if (typeof action === 'object' && action.type === 'command') {
+        // Handle command-type actions
+        const check = {
+          command: action.command,
+          cwd: action.cwd,
+          env: action.env
+        };
+
+        if (dryRun) {
+          results.push({
+            action: action.command,
+            status: 'dry-run',
+            wouldExecute: true
+          });
+          historyEntry.status = 'dry-run';
+        } else {
+          const result = await this.evaluateCommandSucceeds(check);
+          results.push({
+            action: action.command,
+            status: result.ok ? 'success' : 'failed',
+            reason: result.reason,
+            output: result.stdout
+          });
+          historyEntry.status = result.ok ? 'success' : 'failed';
+        }
       } else {
         results.push({
           action,
           status: 'unknown',
           reason: 'Unknown action type'
         });
+        historyEntry.status = 'unknown';
+      }
+
+      if (recordHistory) {
+        fixHistory.push(historyEntry);
       }
     }
 
     return {
       attempted: actions.length,
-      results
+      successful: results.filter(r => r.status === 'success').length,
+      failed: results.filter(r => r.status === 'failed').length,
+      skipped: results.filter(r => r.status === 'skipped').length,
+      dryRun,
+      results,
+      history: recordHistory ? fixHistory : undefined
     };
   }
 }

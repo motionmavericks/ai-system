@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { mkdir, writeFile } from 'fs/promises';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '../..');
@@ -21,6 +22,31 @@ export class AgentExecutor {
       'ops-release',
       'knowledge-steward'
     ];
+
+    // Escalation configuration
+    this.escalationCategories = {
+      MISSING_DEPENDENCY: 'missing_dependency',
+      GUARD_FAILURE: 'guard_failure',
+      API_ERROR: 'api_error',
+      TIMEOUT: 'timeout',
+      VALIDATION_ERROR: 'validation_error',
+      HUMAN_REVIEW: 'human_review',
+      UNKNOWN: 'unknown'
+    };
+
+    this.retryConfig = {
+      maxRetries: 3,
+      baseDelay: 1000,
+      maxDelay: 30000,
+      backoffMultiplier: 2
+    };
+
+    this.escalationMetrics = {
+      totalEscalations: 0,
+      byCategory: {},
+      byTicket: {},
+      byPhase: {}
+    };
   }
 
   /**
@@ -99,92 +125,91 @@ export class AgentExecutor {
     let context = { ...initialContext };
     const maxRetries = 3;
     const results = [];
+    let globalRetryCount = 0; // Track total rewinds
 
-    while (currentAgent < this.agentSequence.length) {
+    while (currentAgent < this.agentSequence.length && globalRetryCount < maxRetries) {
       const agentName = this.agentSequence[currentAgent];
-      let retryCount = 0;
-      let success = false;
 
-      while (retryCount < maxRetries && !success) {
-        try {
-          // Update state to in_progress
+      try {
+        // Update state to in_progress
+        await this.stateManager.updateTicketStatus(
+          ticket.ticket_id,
+          agentName,
+          'in_progress',
+          { agent: agentName }
+        );
+
+        // Execute agent
+        const result = await this.executeAgent(agentName, ticket, context);
+        results.push(result);
+
+        // Handle agent response with enhanced escalation
+        if (result.status === 'escalate') {
+          const escalation = await this.handleEscalation(
+            ticket,
+            agentName,
+            result,
+            context
+          );
+
+          if (escalation.shouldRetry) {
+            // Retry with backoff
+            globalRetryCount++;
+            context.retryMetadata = escalation.retryMetadata;
+            await this.delay(escalation.retryDelay);
+            continue;
+          }
+
+          return {
+            success: false,
+            phase: agentName,
+            reason: 'escalation',
+            escalation,
+            results
+          };
+        }
+
+        if (result.status === 'revise' && agentName === 'reviewer') {
+          // Reviewer requests revision - properly rewind
+          context.reviewer_feedback = result;
+          currentAgent = 0; // Reset to implementer
+          globalRetryCount++;
+          continue; // Continue from new position
+        }
+
+        if (result.status === 'failed' && agentName === 'qa') {
+          // QA failed - properly rewind
+          context.qa_failure = result;
+          currentAgent = 0; // Reset to implementer
+          globalRetryCount++;
+          continue; // Continue from new position
+        }
+
+        // Agent succeeded - move forward
+        context[`${agentName}_output`] = result;
+        currentAgent++;
+
+      } catch (error) {
+        console.error(`Error executing ${agentName}:`, error);
+        globalRetryCount++;
+
+        if (globalRetryCount >= maxRetries) {
           await this.stateManager.updateTicketStatus(
             ticket.ticket_id,
             agentName,
-            'in_progress',
-            { agent: agentName }
+            'blocked',
+            {
+              summary: `Failed after ${maxRetries} retries`,
+              error: error.message
+            }
           );
-
-          // Execute agent
-          const result = await this.executeAgent(agentName, ticket, context);
-          results.push(result);
-
-          // Handle agent response
-          if (result.status === 'escalate') {
-            // Escalation required
-            await this.stateManager.updateTicketStatus(
-              ticket.ticket_id,
-              agentName,
-              'blocked',
-              {
-                summary: result.summary,
-                escalation_reason: result.notes
-              }
-            );
-            return {
-              success: false,
-              phase: agentName,
-              reason: 'escalation',
-              results
-            };
-          }
-
-          if (result.status === 'revise' && agentName === 'reviewer') {
-            // Reviewer requests revision - go back to implementer
-            context.reviewer_feedback = result;
-            currentAgent = 0; // Back to implementer
-            retryCount++;
-            continue;
-          }
-
-          if (result.status === 'failed' && agentName === 'qa') {
-            // QA failed - go back to implementer
-            context.qa_failure = result;
-            currentAgent = 0; // Back to implementer
-            retryCount++;
-            continue;
-          }
-
-          // Agent succeeded
-          success = true;
-          context[`${agentName}_output`] = result;
-
-        } catch (error) {
-          console.error(`Error executing ${agentName}:`, error);
-          retryCount++;
-
-          if (retryCount >= maxRetries) {
-            await this.stateManager.updateTicketStatus(
-              ticket.ticket_id,
-              agentName,
-              'blocked',
-              {
-                summary: `Failed after ${maxRetries} retries`,
-                error: error.message
-              }
-            );
-            return {
-              success: false,
-              phase: agentName,
-              reason: 'max_retries',
-              results
-            };
-          }
+          return {
+            success: false,
+            phase: agentName,
+            reason: 'max_retries',
+            results
+          };
         }
-      }
-
-      if (success) {
-        currentAgent++;
       }
     }
 
@@ -266,6 +291,190 @@ export class AgentExecutor {
     }
 
     return ticketState.status !== 'done' && ticketState.status !== 'blocked';
+  }
+
+  /**
+   * Handle escalation with categorization and retry logic
+   * @param {Object} ticket - Ticket being escalated
+   * @param {string} phase - Current phase
+   * @param {Object} result - Agent result
+   * @param {Object} context - Execution context
+   * @returns {Promise<Object>} Escalation details
+   */
+  async handleEscalation(ticket, phase, result, context) {
+    const category = this.categorizeEscalation(result);
+    const retryAttempt = context.retryMetadata?.attempt || 0;
+
+    // Update metrics
+    this.escalationMetrics.totalEscalations++;
+    this.escalationMetrics.byCategory[category] =
+      (this.escalationMetrics.byCategory[category] || 0) + 1;
+    this.escalationMetrics.byTicket[ticket.ticket_id] =
+      (this.escalationMetrics.byTicket[ticket.ticket_id] || 0) + 1;
+    this.escalationMetrics.byPhase[phase] =
+      (this.escalationMetrics.byPhase[phase] || 0) + 1;
+
+    // Determine if we should retry
+    const shouldRetry = this.shouldRetryEscalation(category, retryAttempt);
+    const retryDelay = this.calculateRetryDelay(retryAttempt);
+
+    // Log escalation
+    const escalationEntry = {
+      ticket_id: ticket.ticket_id,
+      phase,
+      category,
+      reason: result.notes || result.summary,
+      timestamp: new Date().toISOString(),
+      retryAttempt,
+      shouldRetry,
+      retryDelay
+    };
+
+    // Update ticket status
+    await this.stateManager.updateTicketStatus(
+      ticket.ticket_id,
+      phase,
+      shouldRetry ? 'retry_pending' : 'blocked',
+      {
+        summary: result.summary,
+        escalation_reason: result.notes,
+        escalation_category: category,
+        retry_attempt: retryAttempt,
+        next_retry: shouldRetry ? new Date(Date.now() + retryDelay).toISOString() : null
+      }
+    );
+
+    // Send escalation notification if needed
+    if (!shouldRetry || retryAttempt >= this.retryConfig.maxRetries - 1) {
+      await this.notifyEscalation(escalationEntry);
+    }
+
+    return {
+      category,
+      shouldRetry,
+      retryDelay,
+      retryMetadata: {
+        attempt: retryAttempt + 1,
+        category,
+        lastError: result.notes
+      },
+      escalationEntry
+    };
+  }
+
+  /**
+   * Categorize escalation reason
+   * @param {Object} result - Agent result
+   * @returns {string} Escalation category
+   */
+  categorizeEscalation(result) {
+    const reason = (result.notes || result.summary || '').toLowerCase();
+
+    if (reason.includes('dependency') || reason.includes('package') || reason.includes('module')) {
+      return this.escalationCategories.MISSING_DEPENDENCY;
+    }
+    if (reason.includes('guard') || reason.includes('validation') || reason.includes('check')) {
+      return this.escalationCategories.GUARD_FAILURE;
+    }
+    if (reason.includes('api') || reason.includes('network') || reason.includes('connection')) {
+      return this.escalationCategories.API_ERROR;
+    }
+    if (reason.includes('timeout') || reason.includes('timed out')) {
+      return this.escalationCategories.TIMEOUT;
+    }
+    if (reason.includes('invalid') || reason.includes('malformed') || reason.includes('schema')) {
+      return this.escalationCategories.VALIDATION_ERROR;
+    }
+    if (reason.includes('human') || reason.includes('manual') || reason.includes('review')) {
+      return this.escalationCategories.HUMAN_REVIEW;
+    }
+
+    return this.escalationCategories.UNKNOWN;
+  }
+
+  /**
+   * Determine if escalation should be retried
+   * @param {string} category - Escalation category
+   * @param {number} attempt - Current retry attempt
+   * @returns {boolean} Should retry
+   */
+  shouldRetryEscalation(category, attempt) {
+    if (attempt >= this.retryConfig.maxRetries) {
+      return false;
+    }
+
+    // Some categories should not be retried
+    const nonRetryableCategories = [
+      this.escalationCategories.HUMAN_REVIEW,
+      this.escalationCategories.VALIDATION_ERROR
+    ];
+
+    return !nonRetryableCategories.includes(category);
+  }
+
+  /**
+   * Calculate retry delay with exponential backoff
+   * @param {number} attempt - Retry attempt number
+   * @returns {number} Delay in milliseconds
+   */
+  calculateRetryDelay(attempt) {
+    const delay = Math.min(
+      this.retryConfig.baseDelay * Math.pow(this.retryConfig.backoffMultiplier, attempt),
+      this.retryConfig.maxDelay
+    );
+
+    // Add jitter to avoid thundering herd
+    const jitter = Math.random() * 0.3 * delay;
+    return Math.floor(delay + jitter);
+  }
+
+  /**
+   * Notify about escalation
+   * @param {Object} escalation - Escalation details
+   */
+  async notifyEscalation(escalation) {
+    // Write to escalation log
+    const escalationLogPath = resolve(
+      this.memoryManager.memoryRoot,
+      'escalations',
+      `${escalation.ticket_id}-${Date.now()}.json`
+    );
+
+    try {
+      await mkdir(dirname(escalationLogPath), { recursive: true });
+      await writeFile(
+        escalationLogPath,
+        JSON.stringify(escalation, null, 2),
+        'utf8'
+      );
+
+      console.warn(`⚠️  Escalation logged for ${escalation.ticket_id}: ${escalation.category}`);
+      console.warn(`   Reason: ${escalation.reason}`);
+      console.warn(`   Log: ${escalationLogPath}`);
+    } catch (error) {
+      console.error('Failed to log escalation:', error);
+    }
+  }
+
+  /**
+   * Get escalation metrics
+   * @returns {Object} Escalation metrics
+   */
+  getEscalationMetrics() {
+    return {
+      ...this.escalationMetrics,
+      avgEscalationsPerTicket: this.escalationMetrics.totalEscalations /
+        Object.keys(this.escalationMetrics.byTicket).length || 0
+    };
+  }
+
+  /**
+   * Helper to delay execution
+   * @param {number} ms - Milliseconds to delay
+   * @returns {Promise<void>}
+   */
+  delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
 

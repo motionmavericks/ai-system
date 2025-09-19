@@ -26,10 +26,27 @@ async function main() {
     const stateManager = createStateManager();
     const guardEvaluator = createGuardEvaluator();
 
-    // Load initial state
+    // Track escalation statistics
+    const escalationStats = {
+      totalTickets: 0,
+      escalatedTickets: 0,
+      retriedTickets: 0,
+      categories: {}
+    };
+
+    // Load initial state and filter queue
     const queue = await stateManager.loadQueue();
-    if (!queue || queue.length === 0) {
-      console.error('❌ No tickets in queue. Run planner first.');
+    const agentQueue = queue.filter(ticket => {
+      // Skip tickets owned by humans so they remain pending for manual handling
+      if (ticket.summary && ticket.summary.includes('Owner: Human:')) {
+        console.log(`ℹ️  Skipping human-owned ticket: ${ticket.ticket_id}`);
+        return false;
+      }
+      return true;
+    });
+
+    if (!agentQueue || agentQueue.length === 0) {
+      console.error('❌ No agent-executable tickets in queue.');
       process.exit(1);
     }
 
@@ -57,7 +74,7 @@ async function main() {
       operator_intent: 'full_run',
       run_id: runId,
       run_state: runState,
-      queue: queue,
+      queue: agentQueue,
       memory_paths: {
         sessions: `automations/memory/sessions/${runId}`,
         telemetry: `automations/memory/telemetry/${runId}`,
@@ -84,7 +101,7 @@ async function main() {
         guardEvaluator,
         agentExecutor,
         runId,
-        queue
+        agentQueue
       );
     } else if (commandResult.intent === 'ticket_plan') {
       // Execute planner only
@@ -93,7 +110,7 @@ async function main() {
     } else if (commandResult.intent === 'ticket_execution') {
       // Execute specific ticket
       const ticketId = commandResult.ticket_id;
-      const ticket = queue.find(t => t.ticket_id === ticketId);
+      const ticket = agentQueue.find(t => t.ticket_id === ticketId);
 
       if (!ticket) {
         console.error(`❌ Ticket ${ticketId} not found in queue.`);
@@ -150,9 +167,11 @@ async function executeFullRun(
     memoryManager
   });
 
-  if (preflightResult.status !== 'ready') {
+  if (!preflightResult.ready) {
     console.error('❌ Preflight checks failed:', preflightResult.summary);
-    if (preflightResult.blockers) {
+    if (Array.isArray(preflightResult.blockers)) {
+      preflightResult.blockers.forEach(blocker => console.error(`  • ${blocker}`));
+    } else if (preflightResult.blockers) {
       console.error('Blockers:', preflightResult.blockers);
     }
     process.exit(1);
@@ -309,6 +328,20 @@ async function executeFullRun(
   }
 
   console.log(`\n✅ Prompt-driven run completed. Tickets processed: ${processedCount}`);
+
+  // Display escalation metrics if available
+  if (agentExecutor) {
+    const metrics = agentExecutor.getEscalationMetrics();
+    if (metrics.totalEscalations > 0) {
+      console.log('\n📊 Escalation Metrics:');
+      console.log(`   Total Escalations: ${metrics.totalEscalations}`);
+      console.log(`   By Category:`);
+      for (const [category, count] of Object.entries(metrics.byCategory)) {
+        console.log(`     - ${category}: ${count}`);
+      }
+      console.log(`   Average per Ticket: ${metrics.avgEscalationsPerTicket.toFixed(2)}`);
+    }
+  }
 }
 
 async function ensurePostflight({
@@ -375,6 +408,16 @@ async function executeTicket(
     } else {
       console.log(`❌ Ticket ${ticket.ticket_id} failed at phase: ${result.phase}`);
       console.log(`   Reason: ${result.reason}`);
+
+      // Track escalation details
+      if (result.escalation) {
+        console.log(`   Escalation Category: ${result.escalation.category}`);
+        if (result.escalation.shouldRetry) {
+          console.log(`   Will retry after ${result.escalation.retryDelay}ms`);
+        } else {
+          console.log(`   Requires human intervention`);
+        }
+      }
     }
 
     return result;
