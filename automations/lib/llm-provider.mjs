@@ -318,7 +318,8 @@ export class LLMProviderFactory {
       const provider = new ProviderClass(config);
 
       // Test if provider is functional (has API key if needed)
-      if (type !== 'stub' && type !== 'local') {
+      // Only check API keys for known providers that require them
+      if (type === 'openai' || type === 'anthropic') {
         const hasApiKey = (type === 'openai' && process.env.OPENAI_API_KEY) ||
                          (type === 'anthropic' && process.env.ANTHROPIC_API_KEY);
 
